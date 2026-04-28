@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Parallelism Techniques for Large-Scale AI Model Training</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header>
+    <h1>Parallelism Techniques for Large-Scale AI Model Training</h1>
+    <p class="subtitle">An interactive guide to distributing computation across devices</p>
+  </header>
+
+  <nav id="toc">
+    <h2>Contents</h2>
+    <ol>
+      <li><a href="#dp">Data Parallelism (DP)</a></li>
+      <li><a href="#mp">Model Parallelism (MP)</a></li>
+      <li><a href="#tp">Tensor Parallelism (TP)</a></li>
+      <li><a href="#pp">Pipeline Parallelism (PP)</a></li>
+      <li><a href="#fsdp">FSDP / ZeRO</a></li>
+      <li><a href="#ep">Expert Parallelism</a></li>
+      <li><a href="#sp">Sequence Parallelism</a></li>
+      <li><a href="#decision">Decision Guide</a></li>
+    </ol>
+  </nav>
+
+  <!-- ============================================================ -->
+  <!-- DATA PARALLELISM -->
+  <!-- ============================================================ -->
+  <section id="dp" class="technique">
+    <h2>1. Data Parallelism (DP)</h2>
+
+    <div class="concept">
+      <h3>Concept</h3>
+      <p>
+        Data Parallelism is the simplest and most widely used parallelism strategy.
+        The <em>entire model</em> is replicated on every device (GPU). The global mini-batch
+        is split into smaller micro-batches, one per device. Each device performs a full
+        forward and backward pass on its micro-batch independently. After the backward pass,
+        gradients are <strong>all-reduced</strong> (averaged) across all devices so every
+        replica applies the same parameter update, keeping the models in sync.
+      </p>
+      <p>
+        Frameworks like PyTorch's <code>DistributedDataParallel</code> (DDP) implement this
+        pattern. Because each device holds a full copy of the model, DP is limited by the
+        memory capacity of a single device — the model must fit entirely in one GPU's memory.
+      </p>
+    </div>
+
+    <div class="visual-container">
+      <h3>Interactive Visualization</h3>
+      <p class="visual-instructions">Click <strong>Play</strong> to see how data flows through replicated models and gradients are synchronized.</p>
+      <div class="animation-controls">
+        <button class="btn-play" data-target="dp-canvas">Play</button>
+        <button class="btn-reset" data-target="dp-canvas">Reset</button>
+      </div>
+      <canvas id="dp-canvas" width="760" height="370"></canvas>
+    </div>
+
+    <div class="when-to-use">
+      <h3>When to Use</h3>
+      <ul>
+        <li>The model fits comfortably in a single GPU's memory.</li>
+        <li>You want to scale training throughput by adding more GPUs.</li>
+        <li>You need the simplest possible distributed setup.</li>
+      </ul>
+    </div>
+
+    <div class="limitations">
+      <h3>⚠️ Limitations</h3>
+      <ul>
+        <li><strong>Memory ceiling:</strong> Every GPU must hold the full model weights, optimizer states, and activations.</li>
+        <li><strong>Communication overhead:</strong> All-reduce of gradients can become a bottleneck at large scale.</li>
+        <li><strong>Batch-size scaling:</strong> Effective batch size grows linearly with GPU count, which can hurt convergence if not managed (learning-rate warmup, LARS/LAMB).</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- MODEL PARALLELISM -->
+  <!-- ============================================================ -->
+  <section id="mp" class="technique">
+    <h2>2. Model Parallelism (MP)</h2>
+
+    <div class="concept">
+      <h3>Concept</h3>
+      <p>
+        Model Parallelism is the umbrella term for splitting the model itself across multiple
+        devices, rather than replicating it. When a model is too large to fit in a single GPU,
+        you <em>partition</em> its layers or parameters across devices.
+      </p>
+      <p>
+        In the simplest form — sometimes called <strong>naïve model parallelism</strong> —
+        consecutive layers are placed on different GPUs. During the forward pass, activations
+        are sent from one GPU to the next. During the backward pass, gradients flow in reverse.
+        This creates a sequential dependency: while one GPU computes, the others sit idle,
+        leading to low utilization (the "bubble" problem).
+      </p>
+      <p>
+        Tensor Parallelism and Pipeline Parallelism (covered next) are refined forms of model
+        parallelism that address this inefficiency.
+      </p>
+    </div>
+
+    <div class="visual-container">
+      <h3>Interactive Visualization</h3>
+      <p class="visual-instructions">Click <strong>Play</strong> to see how layers are distributed across GPUs and the idle-time bubble that results.</p>
+      <div class="animation-controls">
+        <button class="btn-play" data-target="mp-canvas">Play</button>
+        <button class="btn-reset" data-target="mp-canvas">Reset</button>
+      </div>
+      <canvas id="mp-canvas" width="760" height="370"></canvas>
+    </div>
+
+    <div class="when-to-use">
+      <h3>When to Use</h3>
+      <ul>
+        <li>The model does not fit in a single GPU's memory.</li>
+        <li>As a conceptual starting point before applying TP or PP.</li>
+      </ul>
+    </div>
+
+    <div class="limitations">
+      <h3>⚠️ Limitations</h3>
+      <ul>
+        <li><strong>GPU under-utilization:</strong> Sequential dependency means only one GPU is active at a time in the naïve case.</li>
+        <li><strong>High inter-device communication:</strong> Activations and gradients must be transferred between GPUs at every layer boundary.</li>
+        <li><strong>Complex partitioning:</strong> Balancing compute across devices requires careful layer assignment.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- TENSOR PARALLELISM -->
+  <!-- ============================================================ -->
+  <section id="tp" class="technique">
+    <h2>3. Tensor Parallelism (TP)</h2>
+
+    <div class="concept">
+      <h3>Concept</h3>
+      <p>
+        Tensor Parallelism splits individual layers (tensors) across multiple devices.
+        Instead of placing whole layers on different GPUs, TP partitions the weight matrices
+        of a single layer — typically the large linear projections inside Transformer blocks.
+      </p>
+      <p>
+        For example, a linear layer <code>Y = XW</code> can be split column-wise: each GPU
+        holds a slice of <code>W</code> and computes a partial result. The partial results are
+        then combined via an <strong>all-reduce</strong> or <strong>all-gather</strong> operation.
+        Megatron-LM popularized this approach for Transformer models, splitting the attention
+        heads and MLP columns across GPUs within a single node.
+      </p>
+      <p>
+        Because TP requires frequent communication within each layer's forward and backward pass,
+        it works best over <strong>high-bandwidth interconnects</strong> (e.g., NVLink within a node).
+      </p>
+    </div>
+
+    <div class="visual-container">
+      <h3>Interactive Visualization</h3>
+      <p class="visual-instructions">Click <strong>Play</strong> to see how a weight matrix is split across GPUs and partial results are combined.</p>
+      <div class="animation-controls">
+        <button class="btn-play" data-target="tp-canvas">Play</button>
+        <button class="btn-reset" data-target="tp-canvas">Reset</button>
+      </div>
+      <canvas id="tp-canvas" width="760" height="400"></canvas>
+    </div>
+
+    <div class="when-to-use">
+      <h3>When to Use</h3>
+      <ul>
+        <li>Individual layers are too large for a single GPU.</li>
+        <li>GPUs are connected via high-bandwidth links (NVLink, NVSwitch).</li>
+        <li>You want to reduce memory per GPU without pipeline bubbles.</li>
+      </ul>
+    </div>
+
+    <div class="limitations">
+      <h3>⚠️ Limitations</h3>
+      <ul>
+        <li><strong>Bandwidth-sensitive:</strong> Requires NVLink-class interconnect; poor performance over PCIe or network.</li>
+        <li><strong>Scaling limit:</strong> Typically limited to 4–8 GPUs within a single node.</li>
+        <li><strong>Implementation complexity:</strong> Requires modifying the model code to split specific layers.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- PIPELINE PARALLELISM -->
+  <!-- ============================================================ -->
+  <section id="pp" class="technique">
+    <h2>4. Pipeline Parallelism (PP)</h2>
+
+    <div class="concept">
+      <h3>Concept</h3>
+      <p>
+        Pipeline Parallelism partitions the model into <strong>stages</strong>, each placed on a
+        different device, and then splits the mini-batch into smaller <strong>micro-batches</strong>.
+        Micro-batches are fed into the pipeline in sequence so that multiple stages can be active
+        simultaneously — much like an assembly line.
+      </p>
+      <p>
+        Schedules like <strong>GPipe</strong> and <strong>1F1B</strong> (one-forward-one-backward)
+        minimize the idle "bubble" at the start and end of each batch. In GPipe, all micro-batches
+        do their forward passes first, then all backward passes. In 1F1B, forward and backward
+        passes are interleaved to keep the pipeline fuller.
+      </p>
+      <p>
+        PP communicates only at stage boundaries (point-to-point sends), making it suitable for
+        <strong>inter-node</strong> communication where bandwidth is lower than intra-node.
+      </p>
+    </div>
+
+    <div class="visual-container">
+      <h3>Interactive Visualization</h3>
+      <p class="visual-instructions">Toggle between <strong>GPipe</strong> and <strong>1F1B</strong> schedules to compare bubble sizes.</p>
+      <div class="animation-controls">
+        <button class="btn-play" data-target="pp-canvas">Play</button>
+        <button class="btn-reset" data-target="pp-canvas">Reset</button>
+        <label class="toggle-label">
+          <input type="checkbox" id="pp-schedule-toggle"> 1F1B schedule
+        </label>
+      </div>
+      <canvas id="pp-canvas" width="760" height="400"></canvas>
+    </div>
+
+    <div class="when-to-use">
+      <h3>When to Use</h3>
+      <ul>
+        <li>Training across multiple nodes where inter-node bandwidth is limited.</li>
+        <li>The model has many sequential layers that can be evenly partitioned.</li>
+        <li>Combined with TP (intra-node) for 3D parallelism.</li>
+      </ul>
+    </div>
+
+    <div class="limitations">
+      <h3>⚠️ Limitations</h3>
+      <ul>
+        <li><strong>Pipeline bubble:</strong> Some idle time is unavoidable at the start/end of each batch.</li>
+        <li><strong>Memory imbalance:</strong> First and last stages may hold more activations.</li>
+        <li><strong>Micro-batch tuning:</strong> Too few micro-batches → large bubble; too many → high memory for in-flight activations.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- FSDP / ZeRO -->
+  <!-- ============================================================ -->
+  <section id="fsdp" class="technique">
+    <h2>5. FSDP / ZeRO</h2>
+
+    <div class="concept">
+      <h3>Concept</h3>
+      <p>
+        <strong>Fully Sharded Data Parallelism</strong> (FSDP) — based on Microsoft's
+        <strong>ZeRO</strong> (Zero Redundancy Optimizer) — eliminates the memory redundancy
+        of standard Data Parallelism. Instead of replicating the full model on every GPU,
+        FSDP <em>shards</em> the model parameters, gradients, and optimizer states across all
+        devices.
+      </p>
+      <p>
+        ZeRO defines three stages of sharding:
+      </p>
+      <ul>
+        <li><strong>Stage 1:</strong> Shard optimizer states only (e.g., Adam momentum and variance).</li>
+        <li><strong>Stage 2:</strong> Shard optimizer states + gradients.</li>
+        <li><strong>Stage 3:</strong> Shard optimizer states + gradients + parameters (full sharding).</li>
+      </ul>
+      <p>
+        Before each layer's forward or backward computation, the full parameters for that layer
+        are gathered from all devices (<strong>all-gather</strong>). After the backward pass,
+        gradients are scattered back (<strong>reduce-scatter</strong>). This trades extra
+        communication for dramatically lower per-GPU memory, enabling training of models that
+        would otherwise not fit.
+      </p>
+    </div>
+
+    <div class="visual-container">
+      <h3>Interactive Visualization</h3>
+      <p class="visual-instructions">Use the slider to switch between ZeRO Stage 1, 2, and 3 and see how memory usage changes per GPU.</p>
+      <div class="animation-controls">
+        <button class="btn-play" data-target="fsdp-canvas">Play</button>
+        <button class="btn-reset" data-target="fsdp-canvas">Reset</button>
+        <label class="slider-label">
+          ZeRO Stage: <input type="range" id="zero-stage-slider" min="1" max="3" value="1">
+          <span id="zero-stage-value">1</span>
+        </label>
+      </div>
+      <canvas id="fsdp-canvas" width="760" height="400"></canvas>
+    </div>
+
+    <div class="when-to-use">
+      <h3>When to Use</h3>
+      <ul>
+        <li>Model fits in aggregate GPU memory but not in a single GPU.</li>
+        <li>You want to keep the simplicity of data-parallel training while reducing memory.</li>
+        <li>Good default choice for large model training before adding TP/PP.</li>
+      </ul>
+    </div>
+
+    <div class="limitations">
+      <h3>⚠️ Limitations</h3>
+      <ul>
+        <li><strong>Communication volume:</strong> Full sharding (Stage 3) increases all-gather/reduce-scatter traffic significantly.</li>
+        <li><strong>Latency sensitivity:</strong> Frequent collective operations can hurt throughput on slow interconnects.</li>
+        <li><strong>Complexity at scale:</strong> Tuning sharding groups, prefetching, and mixed precision requires expertise.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- EXPERT PARALLELISM -->
+  <!-- ============================================================ -->
+  <section id="ep" class="technique">
+    <h2>6. Expert Parallelism</h2>
+
+    <div class="concept">
+      <h3>Concept</h3>
+      <p>
+        Expert Parallelism is specific to <strong>Mixture-of-Experts (MoE)</strong> architectures.
+        In an MoE model, certain layers (typically the feed-forward network in a Transformer block)
+        are replaced with multiple "expert" sub-networks. A <strong>gating network</strong> (router)
+        selects which experts process each token — usually the top-k experts.
+      </p>
+      <p>
+        With Expert Parallelism, different experts are placed on different devices. Tokens are
+        routed to the appropriate device via <strong>all-to-all</strong> communication. This allows
+        the model to have a very large total parameter count while keeping the per-token compute
+        (FLOPs) manageable, since only a subset of experts is activated for each token.
+      </p>
+      <p>
+        Models like GShard, Switch Transformer, and Mixtral use this approach to scale to
+        trillions of parameters.
+      </p>
+    </div>
+
+    <div class="visual-container">
+      <h3>Interactive Visualization</h3>
+      <p class="visual-instructions">Click <strong>Play</strong> to see tokens routed to different experts across GPUs. Click on tokens to see which experts they activate.</p>
+      <div class="animation-controls">
+        <button class="btn-play" data-target="ep-canvas">Play</button>
+        <button class="btn-reset" data-target="ep-canvas">Reset</button>
+      </div>
+      <canvas id="ep-canvas" width="760" height="420"></canvas>
+    </div>
+
+    <div class="when-to-use">
+      <h3>When to Use</h3>
+      <ul>
+        <li>Training MoE architectures (Switch Transformer, Mixtral, etc.).</li>
+        <li>You want to scale parameter count without proportionally scaling compute.</li>
+        <li>Combined with DP and TP for large-scale MoE training.</li>
+      </ul>
+    </div>
+
+    <div class="limitations">
+      <h3>⚠️ Limitations</h3>
+      <ul>
+        <li><strong>All-to-all communication:</strong> Token routing requires expensive all-to-all collectives.</li>
+        <li><strong>Load imbalance:</strong> If the router sends too many tokens to one expert, that GPU becomes a bottleneck.</li>
+        <li><strong>Auxiliary losses:</strong> Requires load-balancing losses to prevent expert collapse.</li>
+        <li><strong>Architecture-specific:</strong> Only applicable to MoE models.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- SEQUENCE PARALLELISM -->
+  <!-- ============================================================ -->
+  <section id="sp" class="technique">
+    <h2>7. Sequence Parallelism</h2>
+
+    <div class="concept">
+      <h3>Concept</h3>
+      <p>
+        Sequence Parallelism splits the <strong>sequence dimension</strong> of the input across
+        devices. In a Transformer, operations like LayerNorm and Dropout operate independently
+        on each token position. When combined with Tensor Parallelism, these non-tensor-parallel
+        regions can be partitioned along the sequence dimension to further reduce activation memory.
+      </p>
+      <p>
+        There are two main flavors:
+      </p>
+      <ul>
+        <li>
+          <strong>Megatron-style SP:</strong> Used alongside TP. The sequence is split for
+          LayerNorm/Dropout regions, and all-gather/reduce-scatter operations convert between
+          sequence-split and tensor-split representations at layer boundaries.
+        </li>
+        <li>
+          <strong>Ring Attention / Context Parallelism:</strong> Splits the full sequence across
+          devices for the attention computation itself, passing KV blocks in a ring pattern.
+          This enables training on extremely long sequences (100K+ tokens).
+        </li>
+      </ul>
+    </div>
+
+    <div class="visual-container">
+      <h3>Interactive Visualization</h3>
+      <p class="visual-instructions">Click <strong>Play</strong> to see how a long sequence is split across GPUs and how attention is computed in a ring pattern.</p>
+      <div class="animation-controls">
+        <button class="btn-play" data-target="sp-canvas">Play</button>
+        <button class="btn-reset" data-target="sp-canvas">Reset</button>
+      </div>
+      <canvas id="sp-canvas" width="760" height="420"></canvas>
+    </div>
+
+    <div class="when-to-use">
+      <h3>When to Use</h3>
+      <ul>
+        <li>Training with very long sequences (32K, 100K+ tokens).</li>
+        <li>Activation memory is the bottleneck (common with long contexts).</li>
+        <li>Already using TP and want to further reduce memory in non-TP regions.</li>
+      </ul>
+    </div>
+
+    <div class="limitations">
+      <h3>⚠️ Limitations</h3>
+      <ul>
+        <li><strong>Attention complexity:</strong> Ring attention adds communication rounds proportional to the number of devices.</li>
+        <li><strong>Tightly coupled with TP:</strong> Megatron-style SP only makes sense when TP is already in use.</li>
+        <li><strong>Implementation maturity:</strong> Less battle-tested than DP or TP in many frameworks.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- DECISION GUIDE -->
+  <!-- ============================================================ -->
+  <section id="decision" class="technique decision-guide">
+    <h2>Decision Guide: When to Choose &amp; Combine</h2>
+
+    <p>
+      In practice, large-scale training uses a combination of these techniques — often called
+      <strong>3D parallelism</strong> (DP × TP × PP) or even <strong>5D parallelism</strong>
+      when adding FSDP and Sequence Parallelism. The table below helps you decide which
+      techniques to apply based on your scenario.
+    </p>
+
+    <div class="table-wrapper">
+      <table id="decision-table">
+        <thead>
+          <tr>
+            <th>Scenario</th>
+            <th>Recommended Techniques</th>
+            <th>Why</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Model fits in 1 GPU, want faster training</td>
+            <td><span class="tag tag-dp">DP</span></td>
+            <td>Simplest approach — replicate model, split data. Linear throughput scaling.</td>
+          </tr>
+          <tr>
+            <td>Model slightly exceeds 1 GPU memory</td>
+            <td><span class="tag tag-fsdp">FSDP/ZeRO</span></td>
+            <td>Shard optimizer states and parameters across GPUs. Minimal code changes over DDP.</td>
+          </tr>
+          <tr>
+            <td>Large model, single-node (4–8 GPUs with NVLink)</td>
+            <td><span class="tag tag-tp">TP</span> + <span class="tag tag-dp">DP</span></td>
+            <td>TP splits layers within the node (fast NVLink); DP across nodes for throughput.</td>
+          </tr>
+          <tr>
+            <td>Very large model, multi-node</td>
+            <td><span class="tag tag-tp">TP</span> + <span class="tag tag-pp">PP</span> + <span class="tag tag-dp">DP</span></td>
+            <td>3D parallelism: TP intra-node, PP inter-node (low bandwidth OK), DP for throughput.</td>
+          </tr>
+          <tr>
+            <td>Very large model, want simplicity</td>
+            <td><span class="tag tag-fsdp">FSDP/ZeRO-3</span></td>
+            <td>Full sharding avoids manual TP/PP partitioning. Good up to moderate scale.</td>
+          </tr>
+          <tr>
+            <td>Extremely large model (100B+ params)</td>
+            <td><span class="tag tag-tp">TP</span> + <span class="tag tag-pp">PP</span> + <span class="tag tag-fsdp">FSDP</span> + <span class="tag tag-sp">SP</span></td>
+            <td>Combine all techniques. FSDP replaces pure DP for memory savings. SP for activations.</td>
+          </tr>
+          <tr>
+            <td>MoE architecture</td>
+            <td><span class="tag tag-ep">EP</span> + <span class="tag tag-dp">DP</span> + <span class="tag tag-tp">TP</span></td>
+            <td>EP distributes experts; DP/TP handle the non-expert layers.</td>
+          </tr>
+          <tr>
+            <td>Long sequences (32K–100K+ tokens)</td>
+            <td><span class="tag tag-sp">SP</span> + <span class="tag tag-tp">TP</span></td>
+            <td>SP (Ring Attention) splits sequence to fit in memory; TP for layer-level splitting.</td>
+          </tr>
+          <tr>
+            <td>Memory-constrained, moderate model</td>
+            <td><span class="tag tag-fsdp">FSDP/ZeRO-2</span> + <span class="tag tag-dp">DP</span></td>
+            <td>Stage 2 shards gradients + optimizer states with less communication than Stage 3.</td>
+          </tr>
+          <tr>
+            <td>Maximum scale (GPT-4 / Llama-3 class)</td>
+            <td><span class="tag tag-tp">TP</span> + <span class="tag tag-pp">PP</span> + <span class="tag tag-dp">DP</span> + <span class="tag tag-sp">SP</span> + <span class="tag tag-ep">EP</span></td>
+            <td>5D parallelism. Every dimension is exploited. Requires expert-level tuning.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="key-takeaways">
+      <h3>Key Takeaways</h3>
+      <ul>
+        <li><strong>Start simple:</strong> Use DP or FSDP first. Add TP/PP only when needed.</li>
+        <li><strong>TP intra-node, PP inter-node:</strong> Match parallelism to your interconnect topology.</li>
+        <li><strong>FSDP is the new DP:</strong> For models that don't fit in one GPU, FSDP/ZeRO is the easiest first step.</li>
+        <li><strong>Combine incrementally:</strong> Add one dimension of parallelism at a time and measure throughput.</li>
+        <li><strong>Profile everything:</strong> Use tools like PyTorch Profiler, NVIDIA Nsight, or DeepSpeed Flops Profiler to find bottlenecks.</li>
+      </ul>
+    </div>
+  </section>
+
+  <footer>
+    <p>Built for <a href="https://shimomut.github.io/">shimomut.github.io</a></p>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>

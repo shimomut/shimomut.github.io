@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Profiling Tools for AI Applications</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header>
+    <h1>Profiling Tools for AI Applications</h1>
+    <p class="subtitle">A practical guide to finding and fixing performance bottlenecks in AI training and inference</p>
+  </header>
+
+  <nav id="toc">
+    <h2>Contents</h2>
+    <ol>
+      <li><a href="#time-profiling">Simple time() Profiling</a></li>
+      <li><a href="#pytorch-profiler">PyTorch Profiler (Performance &amp; GPU Memory)</a></li>
+      <li><a href="#nsight">Nsight Systems &amp; Nsight Compute</a></li>
+      <li><a href="#py-spy">py-spy</a></li>
+      <li><a href="#prometheus-grafana">Prometheus &amp; Grafana</a></li>
+      <li><a href="#fs-metrics">File System Metrics (FSx Lustre)</a></li>
+      <li><a href="#comparison">Comparison &amp; Decision Guide</a></li>
+    </ol>
+  </nav>
+
+
+  <!-- ============================================================ -->
+  <!-- SIMPLE time() PROFILING -->
+  <!-- ============================================================ -->
+  <section id="time-profiling" class="tool-section">
+    <h2>1. Simple time() Profiling</h2>
+    <span class="tool-badge badge-python">Python Built-in</span>
+
+    <div class="overview">
+      <h3>Overview</h3>
+      <p>
+        The simplest profiling technique: wrap code regions with <code>time.time()</code> or
+        <code>time.perf_counter()</code> calls and compute the elapsed duration. Zero dependencies,
+        zero setup. It's the first thing you reach for when something feels slow and you want to
+        narrow down <em>which</em> part of your pipeline is the culprit.
+      </p>
+      <p>
+        For GPU workloads, remember that CUDA operations are asynchronous — you must call
+        <code>torch.cuda.synchronize()</code> before taking a timestamp, otherwise you're
+        measuring kernel <em>launch</em> time, not kernel <em>execution</em> time.
+      </p>
+    </div>
+
+    <div class="when-to-use">
+      <h3>When to Use</h3>
+      <ul>
+        <li>Quick sanity checks — "is data loading or the forward pass the bottleneck?"</li>
+        <li>Comparing wall-clock time of two implementations.</li>
+        <li>Measuring end-to-end pipeline latency (preprocessing → inference → postprocessing).</li>
+        <li>When you don't want to install any additional tools.</li>
+      </ul>
+    </div>
+
+    <div class="what-you-measure">
+      <h3>What You Can Measure</h3>
+      <ul>
+        <li>Wall-clock elapsed time for any code region.</li>
+        <li>Per-iteration training step time.</li>
+        <li>Data loading vs. compute time breakdown.</li>
+        <li>Latency of individual inference requests.</li>
+      </ul>
+    </div>
+
+    <div class="how-to-use">
+      <h3>How to Use</h3>
+      <p>CPU-only timing:</p>
+<pre><code>import time
+
+start = time.perf_counter()
+# ... your code ...
+elapsed = time.perf_counter() - start
+print(f"Elapsed: {elapsed:.3f}s")</code></pre>
+
+      <p>GPU-aware timing (critical for CUDA workloads):</p>
+<pre><code>import torch, time
+
+torch.cuda.synchronize()
+start = time.perf_counter()
+
+output = model(input_batch)
+loss = criterion(output, labels)
+loss.backward()
+
+torch.cuda.synchronize()
+elapsed = time.perf_counter() - start
+print(f"Step time: {elapsed:.3f}s")</code></pre>
+
+      <p>
+        For repeated measurements, use PyTorch's built-in <code>torch.utils.benchmark.Timer</code>
+        which handles warmup, synchronization, and statistical aggregation automatically.
+      </p>
+    </div>
+
+    <div class="links">
+      <h3>Learn More</h3>
+      <ul>
+        <li><a href="https://docs.python.org/3/library/time.html#time.perf_counter" target="_blank" rel="noopener">Python time.perf_counter() docs</a></li>
+        <li><a href="https://pytorch.org/docs/stable/benchmark_utils.html" target="_blank" rel="noopener">torch.utils.benchmark reference</a></li>
+      </ul>
+    </div>
+  </section>
+
+
+  <!-- ============================================================ -->
+  <!-- PYTORCH PROFILER -->
+  <!-- ============================================================ -->
+  <section id="pytorch-profiler" class="tool-section">
+    <h2>2. PyTorch Profiler</h2>
+    <span class="tool-badge badge-python">Python</span>
+    <span class="tool-badge badge-gpu">GPU</span>
+
+    <div class="overview">
+      <h3>Overview</h3>
+      <p>
+        PyTorch Profiler (<code>torch.profiler</code>) is the framework-native profiling tool.
+        It captures CPU operator execution, CUDA kernel launches, GPU kernel execution, memory
+        allocations, and communication operations (NCCL collectives) — all correlated on a
+        unified timeline. Results can be viewed in TensorBoard via the PyTorch Profiler plugin
+        or exported as Chrome traces.
+      </p>
+      <p>
+        The profiler wraps your training loop with a context manager and uses a schedule to
+        control when profiling is active (skip warmup iterations, profile a few steps, then stop).
+        This keeps overhead manageable while capturing representative data.
+      </p>
+    </div>
+
+    <div class="when-to-use">
+      <h3>When to Use</h3>
+      <ul>
+        <li>Identifying which operators or kernels dominate training step time.</li>
+        <li>Finding CPU-GPU synchronization stalls (e.g., accidental <code>.item()</code> calls).</li>
+        <li>Analyzing NCCL collective durations in distributed training.</li>
+        <li>Detecting memory allocation patterns and peak memory usage.</li>
+        <li>Debugging OOM errors — finding which tensors consume the most memory.</li>
+        <li>Tuning batch size to maximize GPU memory utilization without OOM.</li>
+        <li>Verifying that gradient checkpointing or mixed precision actually reduced memory.</li>
+        <li>Tracking memory fragmentation in long-running training jobs.</li>
+        <li>Comparing performance before/after an optimization (e.g., torch.compile, mixed precision).</li>
+      </ul>
+    </div>
+
+    <div class="what-you-measure">
+      <h3>What You Can Measure</h3>
+      <ul>
+        <li>Per-operator CPU and CUDA time (self time vs. total time).</li>
+        <li>CUDA kernel execution time and occupancy.</li>
+        <li>GPU memory allocation/deallocation timeline.</li>
+        <li>Peak and current GPU memory allocated / reserved.</li>
+        <li>Per-tensor memory attribution (with memory snapshots).</li>
+        <li>Memory fragmentation and allocator efficiency.</li>
+        <li>NCCL collective operation durations (AllReduce, AllGather, etc.).</li>
+        <li>Data loader worker time and CPU-side preprocessing.</li>
+        <li>Tensor shapes flowing through each operator.</li>
+        <li>GPU SM utilization, power draw, temperature, and clock speeds (via nvidia-smi).</li>
+      </ul>
+    </div>
+
+    <div class="how-to-use">
+      <h3>How to Use</h3>
+<pre><code>from torch.profiler import profile, schedule, tensorboard_trace_handler
+
+with profile(
+    activities=[
+        torch.profiler.ProfilerActivity.CPU,
+        torch.profiler.ProfilerActivity.CUDA,
+    ],
+    schedule=schedule(wait=1, warmup=1, active=3, repeat=1),
+    on_trace_ready=tensorboard_trace_handler("./log/profiler"),
+    record_shapes=True,
+    profile_memory=True,
+    with_stack=True,
+) as prof:
+    for step, batch in enumerate(dataloader):
+        train_step(batch)
+        prof.step()
+
+# Print top operators by CUDA time
+print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=20))</code></pre>
+
+      <p>
+        Then launch TensorBoard to explore the trace:
+      </p>
+<pre><code>tensorboard --logdir=./log/profiler</code></pre>
+    </div>
+
+    <div class="how-to-use" id="gpu-memory">
+      <h3>GPU Memory Profiling</h3>
+      <p>
+        Understanding GPU memory consumption is critical for AI workloads. During training,
+        GPU memory holds model parameters, optimizer states, gradients, activations (for the
+        backward pass), and temporary buffers. A single misconfiguration — wrong batch size,
+        missing gradient checkpointing, or an unexpected tensor copy — can cause an OOM crash
+        or leave expensive GPU memory underutilized.
+      </p>
+      <p>
+        The profiler's <code>profile_memory=True</code> flag (shown above) captures the full
+        allocation timeline. In addition, PyTorch provides dedicated memory analysis APIs:
+        <code>torch.cuda.memory_stats()</code> for detailed allocator statistics,
+        <code>torch.cuda.memory_summary()</code> for a human-readable snapshot, and
+        <code>torch.cuda.memory._record_memory_history()</code> for capturing allocation
+        traces that can be visualized in a flame graph.
+      </p>
+
+      <p>Quick memory check in code:</p>
+<pre><code>import torch
+
+# Current and peak memory
+print(f"Allocated: {torch.cuda.memory_allocated() / 1e9:.2f} GB")
+print(f"Reserved:  {torch.cuda.memory_reserved() / 1e9:.2f} GB")
+print(f"Peak:      {torch.cuda.max_memory_allocated() / 1e9:.2f} GB")
+
+# Detailed summary
+print(torch.cuda.memory_summary())</code></pre>
+
+      <p>Memory snapshot with allocation traces (PyTorch 2.1+):</p>
+<pre><code># Start recording
+torch.cuda.memory._record_memory_history(max_entries=100000)
+
+# ... run your training step ...
+
+# Save snapshot for visualization
+torch.cuda.memory._dump_snapshot("memory_snapshot.pickle")
+torch.cuda.memory._record_memory_history(enabled=None)</code></pre>
+
+      <p>
+        Upload the snapshot to
+        <a href="https://pytorch.org/memory_viz" target="_blank" rel="noopener">pytorch.org/memory_viz</a>
+        for an interactive flame graph showing exactly which call sites allocated memory.
+      </p>
+
+      <p>System-level monitoring with nvidia-smi:</p>
+<pre><code># One-shot status
+nvidia-smi
+
+# Continuous monitoring every 1 second
+nvidia-smi dmon -s um -d 1
+
+# Query specific metrics as CSV
+nvidia-smi --query-gpu=timestamp,gpu_name,utilization.gpu,memory.used,memory.total,power.draw --format=csv -l 1</code></pre>
+    </div>
+
+    <div class="links">
+      <h3>Learn More</h3>
+      <ul>
+        <li><a href="https://pytorch.org/tutorials/recipes/recipes/profiler_recipe.html" target="_blank" rel="noopener">PyTorch Profiler tutorial</a></li>
+        <li><a href="https://pytorch.org/docs/stable/profiler.html" target="_blank" rel="noopener">torch.profiler API reference</a></li>
+        <li><a href="https://pytorch.org/tutorials/intermediate/tensorboard_profiler_tutorial.html" target="_blank" rel="noopener">TensorBoard Profiler plugin guide</a></li>
+        <li><a href="https://pytorch.org/docs/stable/torch_cuda_memory.html" target="_blank" rel="noopener">PyTorch CUDA memory management docs</a></li>
+        <li><a href="https://pytorch.org/blog/understanding-gpu-memory-1/" target="_blank" rel="noopener">Understanding GPU Memory (PyTorch blog)</a></li>
+        <li><a href="https://pytorch.org/memory_viz" target="_blank" rel="noopener">PyTorch Memory Visualizer</a></li>
+        <li><a href="https://developer.nvidia.com/nvidia-system-management-interface" target="_blank" rel="noopener">nvidia-smi documentation</a></li>
+      </ul>
+    </div>
+  </section>
+
+
+  <!-- ============================================================ -->
+  <!-- NSIGHT SYSTEMS & NSIGHT COMPUTE -->
+  <!-- ============================================================ -->
+  <section id="nsight" class="tool-section">
+    <h2>3. Nsight Systems &amp; Nsight Compute</h2>
+    <span class="tool-badge badge-gpu">GPU</span>
+    <span class="tool-badge badge-system">System-level</span>
+
+    <div class="overview">
+      <h3>Overview</h3>
+      <p>
+        NVIDIA's Nsight tools are the gold standard for deep GPU performance analysis.
+        They operate at two different levels of granularity:
+      </p>
+      <p>
+        <strong>Nsight Systems</strong> provides a system-wide timeline view — CPU threads,
+        CUDA API calls, GPU kernels, NCCL operations, memory transfers, and OS runtime events
+        all on a single correlated timeline. Think of it as a "big picture" tool: it shows you
+        <em>where</em> time is spent and <em>where</em> the gaps are (CPU idle while GPU works,
+        GPU idle waiting for data, NCCL stalls, etc.).
+      </p>
+      <p>
+        <strong>Nsight Compute</strong> is a kernel-level profiler. Once Nsight Systems tells
+        you <em>which</em> kernel is the bottleneck, Nsight Compute tells you <em>why</em>.
+        It collects hardware performance counters — SM occupancy, memory throughput, warp stall
+        reasons, instruction mix, L1/L2 cache hit rates — and compares them against the
+        theoretical peak of your GPU (the "roofline" model).
+      </p>
+    </div>
+
+    <div class="when-to-use">
+      <h3>When to Use</h3>
+      <ul>
+        <li><strong>Nsight Systems:</strong> Understanding the overall execution timeline — finding gaps, stalls, and overlap between CPU/GPU/network.</li>
+        <li><strong>Nsight Systems:</strong> Profiling distributed training to see NCCL collectives relative to compute.</li>
+        <li><strong>Nsight Systems:</strong> Verifying that CUDA Graphs, async data loading, or prefetching are working as expected.</li>
+        <li><strong>Nsight Compute:</strong> Deep-diving into a specific CUDA kernel that dominates runtime.</li>
+        <li><strong>Nsight Compute:</strong> Determining if a kernel is compute-bound or memory-bound (roofline analysis).</li>
+        <li><strong>Nsight Compute:</strong> Optimizing custom CUDA/Triton kernels.</li>
+      </ul>
+    </div>
+
+    <div class="what-you-measure">
+      <h3>What You Can Measure</h3>
+      <p><strong>Nsight Systems:</strong></p>
+      <ul>
+        <li>End-to-end timeline of CPU, GPU, and network activity.</li>
+        <li>CUDA API call durations and kernel launch latency.</li>
+        <li>NCCL collective operation timing and overlap with compute.</li>
+        <li>CPU thread activity and OS scheduling events.</li>
+        <li>Memory copy (HtoD, DtoH, DtoD) durations and throughput.</li>
+      </ul>
+      <p><strong>Nsight Compute:</strong></p>
+      <ul>
+        <li>SM occupancy and warp scheduling efficiency.</li>
+        <li>Arithmetic throughput vs. memory throughput (roofline position).</li>
+        <li>L1/L2 cache hit rates and memory bandwidth utilization.</li>
+        <li>Warp stall reasons (memory dependency, execution dependency, etc.).</li>
+        <li>Instruction mix (FP16, FP32, INT, Tensor Core utilization).</li>
+      </ul>
+    </div>
+
+    <div class="how-to-use">
+      <h3>How to Use</h3>
+      <p>Nsight Systems — collect a trace from the command line:</p>
+<pre><code># Profile a training script, capture CUDA + NCCL + OS runtime
+nsys profile \
+  --trace=cuda,nvtx,osrt,cudnn,cublas \
+  --output=training_trace \
+  --force-overwrite=true \
+  python train.py
+
+# For distributed training (profile rank 0 only)
+nsys profile \
+  --trace=cuda,nvtx,osrt \
+  --cuda-memory-usage=true \
+  --output=rank0_trace \
+  torchrun --nproc_per_node=8 train.py</code></pre>
+
+      <p>
+        Open the resulting <code>.nsys-rep</code> file in the Nsight Systems GUI to explore
+        the timeline. Use NVTX annotations in your code to mark regions of interest:
+      </p>
+<pre><code>import torch
+
+with torch.cuda.nvtx.range("forward_pass"):
+    output = model(input_batch)
+
+with torch.cuda.nvtx.range("backward_pass"):
+    loss.backward()</code></pre>
+
+      <p>Nsight Compute — profile a specific kernel:</p>
+<pre><code># Profile all kernels (slow — use for short runs)
+ncu --set full -o kernel_report python inference.py
+
+# Profile only kernels matching a name pattern
+ncu --kernel-name "ampere_fp16_s1688gemm" \
+    --launch-skip 5 --launch-count 3 \
+    -o gemm_report \
+    python inference.py</code></pre>
+    </div>
+
+    <div class="links">
+      <h3>Learn More</h3>
+      <ul>
+        <li><a href="https://developer.nvidia.com/nsight-systems" target="_blank" rel="noopener">Nsight Systems product page</a></li>
+        <li><a href="https://docs.nvidia.com/nsight-systems/UserGuide/index.html" target="_blank" rel="noopener">Nsight Systems user guide</a></li>
+        <li><a href="https://developer.nvidia.com/nsight-compute" target="_blank" rel="noopener">Nsight Compute product page</a></li>
+        <li><a href="https://docs.nvidia.com/nsight-compute/NsightCompute/index.html" target="_blank" rel="noopener">Nsight Compute user guide</a></li>
+        <li><a href="https://developer.nvidia.com/blog/nvidia-tools-extension-api-nvtx-annotation-tool-activity/" target="_blank" rel="noopener">NVTX annotation guide</a></li>
+      </ul>
+    </div>
+  </section>
+
+
+  <!-- ============================================================ -->
+  <!-- PY-SPY -->
+  <!-- ============================================================ -->
+  <section id="py-spy" class="tool-section">
+    <h2>4. py-spy</h2>
+    <span class="tool-badge badge-python">Python</span>
+    <span class="tool-badge badge-system">System-level</span>
+
+    <div class="overview">
+      <h3>Overview</h3>
+      <p>
+        <strong>py-spy</strong> is a sampling profiler for Python programs. Unlike
+        <code>cProfile</code> (which instruments every function call and adds significant
+        overhead), py-spy works by periodically sampling the call stack of a running Python
+        process from <em>outside</em> — it attaches to the process without modifying it or
+        requiring any code changes.
+      </p>
+      <p>
+        This makes py-spy uniquely useful for AI workloads: you can attach it to a
+        long-running training job that's already in progress, see where CPU time is being
+        spent, and detach — all without restarting the job or adding instrumentation. It's
+        especially valuable for diagnosing Python-side bottlenecks: slow data preprocessing,
+        GIL contention, inefficient tokenization, or unexpected Python overhead in the
+        training loop.
+      </p>
+    </div>
+
+    <div class="when-to-use">
+      <h3>When to Use</h3>
+      <ul>
+        <li>Profiling a running process without restarting it (attach to PID).</li>
+        <li>Finding CPU-side bottlenecks in data loading, preprocessing, or tokenization.</li>
+        <li>Diagnosing GIL contention in multi-threaded Python code.</li>
+        <li>Quick "where is my Python code spending time?" without any code changes.</li>
+        <li>Profiling code you can't easily modify (third-party libraries, complex launchers).</li>
+      </ul>
+    </div>
+
+    <div class="what-you-measure">
+      <h3>What You Can Measure</h3>
+      <ul>
+        <li>Python function call frequency and time (sampled, not exact).</li>
+        <li>Call stack flame graphs showing the hot path.</li>
+        <li>GIL usage and contention across threads.</li>
+        <li>Native (C extension) vs. Python frame time.</li>
+      </ul>
+    </div>
+
+    <div class="how-to-use">
+      <h3>How to Use</h3>
+<pre><code># Install
+pip install py-spy
+
+# Record a flame graph SVG from a running process
+py-spy record --pid 12345 --output profile.svg --duration 30
+
+# Record from a new process
+py-spy record --output profile.svg -- python train.py
+
+# Live top-like view of a running process
+py-spy top --pid 12345
+
+# Include native C/C++ frames (useful for seeing into PyTorch internals)
+py-spy record --pid 12345 --native --output profile.svg</code></pre>
+
+      <p>
+        The generated SVG flame graph can be opened in any browser. The width of each bar
+        represents the proportion of samples where that function was on the stack — wider
+        bars mean more time spent there.
+      </p>
+    </div>
+
+    <div class="links">
+      <h3>Learn More</h3>
+      <ul>
+        <li><a href="https://github.com/benfred/py-spy" target="_blank" rel="noopener">py-spy GitHub repository</a></li>
+        <li><a href="https://www.brendangregg.com/flamegraphs.html" target="_blank" rel="noopener">Flame Graphs — Brendan Gregg</a></li>
+      </ul>
+    </div>
+  </section>
+
+
+  <!-- ============================================================ -->
+  <!-- PROMETHEUS & GRAFANA -->
+  <!-- ============================================================ -->
+  <section id="prometheus-grafana" class="tool-section">
+    <h2>5. Prometheus &amp; Grafana</h2>
+    <span class="tool-badge badge-infra">Infrastructure</span>
+    <span class="tool-badge badge-system">System-level</span>
+
+    <div class="overview">
+      <h3>Overview</h3>
+      <p>
+        <strong>Prometheus</strong> is a time-series metrics database that scrapes numeric
+        metrics from instrumented targets at regular intervals. <strong>Grafana</strong> is
+        the visualization layer that queries Prometheus and renders dashboards with graphs,
+        heatmaps, and alerts.
+      </p>
+      <p>
+        Together, they form the standard observability stack for AI training clusters. While
+        tools like PyTorch Profiler and Nsight give you deep, short-duration profiles of a
+        single run, Prometheus/Grafana give you continuous, long-duration monitoring across
+        your entire fleet — GPU utilization trends over days, memory usage patterns across
+        hundreds of nodes, network throughput during distributed training, and alerting when
+        metrics deviate from expected ranges.
+      </p>
+      <p>
+        Key exporters for AI workloads include <strong>DCGM Exporter</strong> (GPU metrics
+        via NVIDIA DCGM), <strong>Node Exporter</strong> (CPU, memory, disk, network), and
+        custom application-level metrics exposed via the Prometheus client library.
+      </p>
+    </div>
+
+    <div class="when-to-use">
+      <h3>When to Use</h3>
+      <ul>
+        <li>Continuous monitoring of GPU utilization, memory, and temperature across a cluster.</li>
+        <li>Tracking training throughput (samples/sec, tokens/sec) over time.</li>
+        <li>Alerting on anomalies — GPU utilization drops, OOM events, node failures.</li>
+        <li>Correlating infrastructure metrics with training loss curves.</li>
+        <li>Capacity planning — understanding resource utilization patterns.</li>
+        <li>Post-mortem analysis of failed training runs.</li>
+      </ul>
+    </div>
+
+    <div class="what-you-measure">
+      <h3>What You Can Measure</h3>
+      <ul>
+        <li>GPU utilization, memory usage, power draw, temperature (via DCGM Exporter).</li>
+        <li>CPU utilization, system memory, disk I/O, network throughput (via Node Exporter).</li>
+        <li>Custom application metrics: training loss, learning rate, throughput, batch time.</li>
+        <li>NCCL/EFA network bandwidth and error rates.</li>
+        <li>Job scheduling and queue wait times (Slurm/Kubernetes metrics).</li>
+      </ul>
+    </div>
+
+    <div class="how-to-use">
+      <h3>How to Use</h3>
+      <p>Expose custom training metrics from your Python code:</p>
+<pre><code>from prometheus_client import start_http_server, Gauge, Summary
+
+# Create metrics
+gpu_util = Gauge('training_gpu_utilization', 'GPU utilization %', ['gpu_id'])
+step_time = Summary('training_step_seconds', 'Time per training step')
+throughput = Gauge('training_throughput_tokens_per_sec', 'Training throughput')
+
+# Start metrics server on port 8000
+start_http_server(8000)
+
+for step, batch in enumerate(dataloader):
+    with step_time.time():
+        train_step(batch)
+    throughput.set(tokens_per_second)
+    gpu_util.labels(gpu_id='0').set(get_gpu_utilization())</code></pre>
+
+      <p>Deploy DCGM Exporter for GPU metrics (Docker example):</p>
+<pre><code>docker run -d --gpus all --rm \
+  -p 9400:9400 \
+  nvcr.io/nvidia/k8s/dcgm-exporter:latest</code></pre>
+
+      <p>
+        Configure Prometheus to scrape these endpoints, then build Grafana dashboards.
+        NVIDIA provides a pre-built
+        <a href="https://grafana.com/grafana/dashboards/12239-nvidia-dcgm-exporter-dashboard/" target="_blank" rel="noopener">DCGM Exporter dashboard</a>
+        for Grafana.
+      </p>
+    </div>
+
+    <div class="links">
+      <h3>Learn More</h3>
+      <ul>
+        <li><a href="https://prometheus.io/docs/introduction/overview/" target="_blank" rel="noopener">Prometheus documentation</a></li>
+        <li><a href="https://grafana.com/docs/grafana/latest/" target="_blank" rel="noopener">Grafana documentation</a></li>
+        <li><a href="https://github.com/NVIDIA/dcgm-exporter" target="_blank" rel="noopener">DCGM Exporter GitHub</a></li>
+        <li><a href="https://github.com/prometheus/node_exporter" target="_blank" rel="noopener">Node Exporter GitHub</a></li>
+        <li><a href="https://prometheus.io/docs/instrumenting/clientlibs/" target="_blank" rel="noopener">Prometheus client libraries</a></li>
+      </ul>
+    </div>
+  </section>
+
+
+  <!-- ============================================================ -->
+  <!-- FILE SYSTEM METRICS (FSx Lustre) -->
+  <!-- ============================================================ -->
+  <section id="fs-metrics" class="tool-section">
+    <h2>6. File System Metrics (FSx for Lustre)</h2>
+    <span class="tool-badge badge-storage">Storage</span>
+    <span class="tool-badge badge-infra">Infrastructure</span>
+
+    <div class="overview">
+      <h3>Overview</h3>
+      <p>
+        AI training workloads are often I/O-intensive — loading large datasets, reading
+        checkpoint files, and writing model snapshots. When the file system can't keep up,
+        GPUs sit idle waiting for data. <strong>Amazon FSx for Lustre</strong> is a
+        high-performance parallel file system commonly used for AI/ML training on AWS,
+        and monitoring its performance metrics is essential for diagnosing data pipeline
+        bottlenecks.
+      </p>
+      <p>
+        FSx for Lustre publishes metrics to Amazon CloudWatch, and Lustre itself exposes
+        detailed statistics via <code>/proc</code> and <code>lctl</code> commands on the
+        client nodes. Key concerns include: aggregate throughput (are you hitting the file
+        system's provisioned bandwidth?), metadata IOPS (are small-file operations like
+        <code>open()</code>/<code>stat()</code> creating a bottleneck?), and client-side
+        caching behavior.
+      </p>
+    </div>
+
+    <div class="when-to-use">
+      <h3>When to Use</h3>
+      <ul>
+        <li>GPU utilization is low and you suspect the data pipeline is the bottleneck.</li>
+        <li>Training throughput drops when scaling to more nodes (I/O contention).</li>
+        <li>Checkpoint save/load times are unexpectedly long.</li>
+        <li>You need to right-size your FSx for Lustre file system (throughput tier, storage capacity).</li>
+        <li>Diagnosing "thundering herd" problems where all nodes read the same files simultaneously.</li>
+      </ul>
+    </div>
+
+    <div class="what-you-measure">
+      <h3>What You Can Measure</h3>
+      <ul>
+        <li><strong>Throughput:</strong> DataReadBytes, DataWriteBytes — aggregate read/write bandwidth.</li>
+        <li><strong>IOPS:</strong> DataReadOperations, DataWriteOperations — I/O operations per second.</li>
+        <li><strong>Metadata IOPS:</strong> MetadataOperations — file open, stat, readdir, create operations.</li>
+        <li><strong>Free storage capacity:</strong> FreeDataStorageCapacity — remaining disk space.</li>
+        <li><strong>Client-side stats:</strong> Lustre OSC/MDC statistics (read/write bytes, RPC counts, cache hits).</li>
+        <li><strong>Latency:</strong> Per-operation latency distributions from Lustre client stats.</li>
+      </ul>
+    </div>
+
+    <div class="how-to-use">
+      <h3>How to Use</h3>
+      <p>CloudWatch metrics (via AWS CLI):</p>
+<pre><code># Get read throughput for an FSx file system over the last hour
+aws cloudwatch get-metric-statistics \
+  --namespace AWS/FSx \
+  --metric-name DataReadBytes \
+  --dimensions Name=FileSystemId,Value=fs-0123456789abcdef0 \
+  --start-time $(date -u -d '1 hour ago' +%Y-%m-%dT%H:%M:%S) \
+  --end-time $(date -u +%Y-%m-%dT%H:%M:%S) \
+  --period 60 \
+  --statistics Sum</code></pre>
+
+      <p>Client-side Lustre statistics (run on compute nodes):</p>
+<pre><code># Overall client stats
+lctl get_param llite.*.stats
+
+# OST (Object Storage Target) read/write stats
+lctl get_param osc.*.stats
+
+# MDC (Metadata Client) stats — shows metadata operation counts
+lctl get_param mdc.*.stats
+
+# Real-time monitoring with watch
+watch -n 1 'lctl get_param llite.*.stats | grep -E "read_bytes|write_bytes"'</code></pre>
+
+      <p>Quick I/O benchmark to validate file system performance:</p>
+<pre><code># Sequential write throughput test (1GB file)
+dd if=/dev/zero of=/fsx/benchmark_test bs=1M count=1024 oflag=direct
+
+# Sequential read throughput test
+dd if=/fsx/benchmark_test of=/dev/null bs=1M iflag=direct
+
+# Parallel I/O test with fio
+fio --name=seqread --rw=read --bs=1M --size=1G \
+    --numjobs=8 --directory=/fsx/bench --direct=1</code></pre>
+    </div>
+
+    <div class="links">
+      <h3>Learn More</h3>
+      <ul>
+        <li><a href="https://docs.aws.amazon.com/fsx/latest/LustreGuide/monitoring-cloudwatch.html" target="_blank" rel="noopener">FSx for Lustre CloudWatch metrics</a></li>
+        <li><a href="https://docs.aws.amazon.com/fsx/latest/LustreGuide/performance.html" target="_blank" rel="noopener">FSx for Lustre performance guide</a></li>
+        <li><a href="https://doc.lustre.org/lustre_manual.xhtml#monitoring_lustre" target="_blank" rel="noopener">Lustre monitoring documentation</a></li>
+        <li><a href="https://docs.aws.amazon.com/fsx/latest/LustreGuide/what-is.html" target="_blank" rel="noopener">Amazon FSx for Lustre overview</a></li>
+      </ul>
+    </div>
+  </section>
+
+
+  <!-- ============================================================ -->
+  <!-- COMPARISON & DECISION GUIDE -->
+  <!-- ============================================================ -->
+  <section id="comparison" class="tool-section">
+    <h2>Comparison &amp; Decision Guide</h2>
+
+    <p>
+      Each tool operates at a different level of the stack and answers different questions.
+      The table below helps you pick the right tool for your situation.
+    </p>
+
+    <div class="table-wrapper">
+      <table class="comparison-table">
+        <thead>
+          <tr>
+            <th>Tool</th>
+            <th>Level</th>
+            <th>Best For</th>
+            <th>Overhead</th>
+            <th>Requires Code Changes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>time() / perf_counter</td>
+            <td>Application</td>
+            <td>Quick wall-clock measurements</td>
+            <td>Negligible</td>
+            <td>Yes (minimal)</td>
+          </tr>
+          <tr>
+            <td>PyTorch Profiler</td>
+            <td>Framework</td>
+            <td>Operator-level CPU/GPU analysis, memory debugging, OOM analysis</td>
+            <td>Low–Medium</td>
+            <td>Yes (context manager)</td>
+          </tr>
+          <tr>
+            <td>Nsight Systems</td>
+            <td>System</td>
+            <td>Full timeline: CPU + GPU + network</td>
+            <td>Low–Medium</td>
+            <td>No (optional NVTX)</td>
+          </tr>
+          <tr>
+            <td>Nsight Compute</td>
+            <td>Kernel</td>
+            <td>Deep kernel analysis, roofline</td>
+            <td>High (replays kernels)</td>
+            <td>No</td>
+          </tr>
+          <tr>
+            <td>py-spy</td>
+            <td>Application (CPU)</td>
+            <td>Python CPU profiling, GIL analysis</td>
+            <td>Very low</td>
+            <td>No (attaches to PID)</td>
+          </tr>
+          <tr>
+            <td>Prometheus / Grafana</td>
+            <td>Infrastructure</td>
+            <td>Continuous cluster monitoring, alerting</td>
+            <td>Negligible</td>
+            <td>Setup required</td>
+          </tr>
+          <tr>
+            <td>FSx Lustre metrics</td>
+            <td>Storage</td>
+            <td>I/O throughput, metadata IOPS</td>
+            <td>Negligible</td>
+            <td>No</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="key-takeaways">
+      <h3>Recommended Workflow</h3>
+      <ul>
+        <li><strong>Start broad, then narrow down.</strong> Use <code>time()</code> to identify which phase is slow, then use specialized tools to dig deeper.</li>
+        <li><strong>GPU underutilized?</strong> Check Nsight Systems for CPU-GPU gaps. Check py-spy for Python-side bottlenecks. Check FSx metrics for I/O stalls.</li>
+        <li><strong>GPU fully utilized but slow?</strong> Use PyTorch Profiler to find the expensive operators, then Nsight Compute to optimize the hot kernels.</li>
+        <li><strong>OOM errors?</strong> Use <code>torch.cuda.memory_summary()</code> and memory snapshots to find the culprit tensors.</li>
+        <li><strong>Scaling problems?</strong> Use Nsight Systems to check NCCL collective overhead. Use Prometheus/Grafana to monitor per-node GPU utilization across the cluster.</li>
+        <li><strong>Always have Prometheus/Grafana running</strong> on your training cluster — it's your continuous baseline that catches regressions and anomalies you wouldn't notice otherwise.</li>
+      </ul>
+    </div>
+  </section>
+
+  <footer>
+    <p>Built for <a href="https://shimomut.github.io/">shimomut.github.io</a></p>
+  </footer>
+
+</body>
+</html>

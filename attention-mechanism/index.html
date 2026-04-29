@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Attention Mechanism — Core of the Transformer Architecture</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header>
+    <h1>The Attention Mechanism</h1>
+    <p class="subtitle">Core of the Transformer architecture — from self-attention to modern optimizations</p>
+  </header>
+
+  <nav id="toc">
+    <h2>Contents</h2>
+    <ol>
+      <li><a href="#self-attention">Self-Attention</a></li>
+      <li><a href="#kv-cache">The KV Cache</a></li>
+      <li><a href="#multi-head">Multi-Head Attention (MHA)</a></li>
+      <li><a href="#multi-query">Multi-Query Attention (MQA)</a></li>
+      <li><a href="#grouped-query">Grouped-Query Attention (GQA)</a></li>
+      <li><a href="#flash-attention">Flash Attention</a></li>
+    </ol>
+  </nav>
+
+
+  <!-- ============================================================ -->
+  <!-- SELF-ATTENTION -->
+  <!-- ============================================================ -->
+  <section id="self-attention" class="topic">
+    <h2>1. Self-Attention</h2>
+
+    <div class="concept">
+      <h3>Concept</h3>
+      <p>
+        Self-attention is the fundamental operation that gives Transformers their power.
+        For each token in a sequence, self-attention computes a weighted sum of <em>all</em>
+        tokens' representations — allowing every word to directly "look at" every other word,
+        regardless of distance. This is what lets a Transformer understand that in
+        <em>"The cat sat on the mat because <strong>it</strong> was tired"</em>, the word
+        "it" refers to "cat" and not "mat".
+      </p>
+      <p>
+        Each input token is projected into three vectors: a <strong>Query</strong> (Q) — "what am I looking for?",
+        a <strong>Key</strong> (K) — "what do I contain?", and a <strong>Value</strong> (V) — "what information do I provide?".
+        The attention score between two tokens is the dot product of one token's Query with another's Key.
+        These scores are scaled and passed through softmax to produce attention weights, which are then
+        used to compute a weighted sum of the Value vectors.
+      </p>
+      <div class="formula">
+        Attention(Q, K, V) = softmax(Q · K<sup>T</sup> / √d<sub>k</sub>) · V
+      </div>
+      <p>
+        The division by √d<sub>k</sub> (the dimension of the key vectors) prevents the dot products
+        from growing too large, which would push softmax into regions with extremely small gradients.
+      </p>
+    </div>
+
+    <div class="visual-container">
+      <h3>Interactive Visualization</h3>
+      <p class="visual-instructions">Click <strong>Play</strong> to see how each word in an English sentence attends to every other word. Watch the attention weights form — thicker, brighter lines mean stronger attention.</p>
+      <div class="animation-controls">
+        <button class="btn-play" data-target="sa-canvas">Play</button>
+        <button class="btn-reset" data-target="sa-canvas">Reset</button>
+      </div>
+      <canvas id="sa-canvas" width="760" height="420"></canvas>
+    </div>
+
+    <div class="key-points">
+      <h3>Key Points</h3>
+      <ul>
+        <li><strong>Global context:</strong> Every token can attend to every other token — no recurrence or convolution needed.</li>
+        <li><strong>Parallelizable:</strong> All attention scores can be computed simultaneously (unlike RNNs which process sequentially).</li>
+        <li><strong>Quadratic cost:</strong> Computing all pairwise scores costs O(n²) in sequence length — the main scalability challenge.</li>
+        <li><strong>Position-agnostic:</strong> Self-attention itself has no notion of order; positional encodings must be added separately.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- KV CACHE -->
+  <!-- ============================================================ -->
+  <section id="kv-cache" class="topic">
+    <h2>2. The KV Cache</h2>
+
+    <div class="concept">
+      <h3>Concept</h3>
+      <p>
+        During autoregressive generation (producing one token at a time), the model computes
+        attention for each new token against <em>all previous tokens</em>. Without optimization,
+        this means recomputing the Key and Value projections for every past token at every
+        generation step — an enormous waste of computation.
+      </p>
+      <p>
+        The <strong>KV Cache</strong> solves this by storing the Key and Value vectors from all
+        previous tokens. When generating token <em>t</em>, only the new token's Q, K, and V
+        need to be computed. The new K and V are appended to the cache, and the Query attends
+        to the full cached K and V. This turns generation from O(n²) total compute to O(n)
+        per step.
+      </p>
+      <p>
+        The trade-off is memory: the KV cache grows linearly with sequence length and is
+        proportional to <code>2 × num_layers × num_heads × head_dim × seq_len × bytes_per_element</code>.
+        For a 70B model with 128K context, the KV cache alone can consume tens of gigabytes per
+        request — making it the dominant memory bottleneck in LLM serving. This is exactly why
+        optimizations like Multi-Query Attention and Grouped-Query Attention exist.
+      </p>
+    </div>
+
+    <div class="visual-container">
+      <h3>Interactive Visualization</h3>
+      <p class="visual-instructions">Click <strong>Play</strong> to see how the KV cache grows as tokens are generated one by one. Each step only computes the new token's vectors and appends to the cache.</p>
+      <div class="animation-controls">
+        <button class="btn-play" data-target="kv-canvas">Play</button>
+        <button class="btn-reset" data-target="kv-canvas">Reset</button>
+      </div>
+      <canvas id="kv-canvas" width="760" height="420"></canvas>
+    </div>
+
+    <div class="key-points">
+      <h3>Key Points</h3>
+      <ul>
+        <li><strong>Avoids recomputation:</strong> Past tokens' K and V are computed once and reused for all future steps.</li>
+        <li><strong>Memory-bound:</strong> The KV cache is the primary memory consumer during inference — it scales with sequence length, batch size, and model depth.</li>
+        <li><strong>Motivates MQA/GQA:</strong> Reducing the number of KV heads directly shrinks the cache, enabling longer contexts and larger batches.</li>
+        <li><strong>PagedAttention:</strong> Systems like vLLM manage KV cache memory in pages (like OS virtual memory) to eliminate fragmentation and enable efficient batching.</li>
+      </ul>
+    </div>
+  </section>
+
+
+  <!-- ============================================================ -->
+  <!-- MULTI-HEAD ATTENTION -->
+  <!-- ============================================================ -->
+  <section id="multi-head" class="topic">
+    <h2>3. Multi-Head Attention (MHA)</h2>
+
+    <div class="concept">
+      <h3>Concept</h3>
+      <p>
+        A single attention function can only capture one type of relationship at a time.
+        <strong>Multi-Head Attention</strong> runs multiple attention operations in parallel —
+        each "head" uses different learned projection matrices (W<sub>Q</sub>, W<sub>K</sub>, W<sub>V</sub>),
+        allowing the model to simultaneously attend to information from different representation
+        subspaces at different positions.
+      </p>
+      <p>
+        For example, in the sentence <em>"The cat sat on the mat because it was tired"</em>,
+        one head might learn to track syntactic relationships (subject-verb), another might
+        capture coreference ("it" → "cat"), and another might focus on positional proximity.
+        The outputs of all heads are concatenated and projected through a final linear layer.
+      </p>
+      <div class="formula">
+        MultiHead(Q, K, V) = Concat(head<sub>1</sub>, ..., head<sub>h</sub>) · W<sup>O</sup>
+        <br>where head<sub>i</sub> = Attention(Q·W<sub>i</sub><sup>Q</sup>, K·W<sub>i</sub><sup>K</sup>, V·W<sub>i</sub><sup>V</sup>)
+      </div>
+      <p>
+        The total computation is the same as a single head with full dimensionality — each head
+        operates on d<sub>model</sub>/h dimensions, so the cost is equivalent. The benefit is
+        purely representational: multiple independent attention patterns are more expressive
+        than a single one.
+      </p>
+    </div>
+
+    <div class="visual-container">
+      <h3>Interactive Visualization</h3>
+      <p class="visual-instructions">Click <strong>Play</strong> to see how multiple attention heads each learn different attention patterns over the same input sentence. Each head is shown in a different color.</p>
+      <div class="animation-controls">
+        <button class="btn-play" data-target="mha-canvas">Play</button>
+        <button class="btn-reset" data-target="mha-canvas">Reset</button>
+      </div>
+      <canvas id="mha-canvas" width="760" height="450"></canvas>
+    </div>
+
+    <div class="key-points">
+      <h3>Key Points</h3>
+      <ul>
+        <li><strong>Multiple perspectives:</strong> Each head can learn a different type of relationship (syntactic, semantic, positional).</li>
+        <li><strong>Same total cost:</strong> h heads of dimension d/h costs the same as 1 head of dimension d.</li>
+        <li><strong>Standard in all Transformers:</strong> GPT, BERT, LLaMA, etc. all use multi-head attention — typically 32, 64, or 128 heads.</li>
+        <li><strong>KV cache cost:</strong> Each head maintains its own K and V cache — this is the memory problem MQA and GQA address.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- MULTI-QUERY ATTENTION -->
+  <!-- ============================================================ -->
+  <section id="multi-query" class="topic">
+    <h2>4. Multi-Query Attention (MQA)</h2>
+
+    <div class="concept">
+      <h3>Concept</h3>
+      <p>
+        <strong>Multi-Query Attention</strong>, introduced by Noam Shazeer in 2019, is a
+        simple but powerful optimization: instead of giving each attention head its own
+        Key and Value projections, all heads <em>share a single set</em> of Keys and Values.
+        Each head still has its own unique Query projection, so heads can still attend to
+        different aspects of the input — but they all read from the same K and V.
+      </p>
+      <p>
+        The impact on inference is dramatic. For a model with 64 attention heads, MQA reduces
+        the KV cache size by 64×. This means you can serve longer sequences, fit more concurrent
+        requests in GPU memory, and the memory bandwidth bottleneck during the decode phase
+        (which is dominated by reading the KV cache) is greatly reduced.
+      </p>
+      <p>
+        The trade-off is a small quality degradation — with only one set of K/V, the model
+        has less representational capacity. In practice, the quality loss is modest and often
+        acceptable for inference-optimized models.
+      </p>
+    </div>
+
+    <div class="how-it-differs">
+      <h3>⚡ How It Differs from Standard MHA</h3>
+      <ul>
+        <li><strong>MHA:</strong> h Query heads, h Key heads, h Value heads → KV cache = h × d<sub>head</sub> × seq_len × 2</li>
+        <li><strong>MQA:</strong> h Query heads, <em>1</em> Key head, <em>1</em> Value head → KV cache = 1 × d<sub>head</sub> × seq_len × 2</li>
+        <li>KV cache memory reduced by a factor of h (e.g., 64× for a 64-head model).</li>
+        <li>Decode throughput improves because less memory bandwidth is needed to read the KV cache.</li>
+        <li>Small quality trade-off — mitigated by GQA (next section).</li>
+      </ul>
+    </div>
+
+    <div class="visual-container">
+      <h3>Interactive Visualization</h3>
+      <p class="visual-instructions">Click <strong>Play</strong> to compare MHA (each head has its own K,V) vs MQA (all heads share one K,V). Notice the dramatic reduction in KV cache size.</p>
+      <div class="animation-controls">
+        <button class="btn-play" data-target="mqa-canvas">Play</button>
+        <button class="btn-reset" data-target="mqa-canvas">Reset</button>
+      </div>
+      <canvas id="mqa-canvas" width="760" height="430"></canvas>
+    </div>
+
+    <div class="key-points">
+      <h3>Key Points</h3>
+      <ul>
+        <li><strong>Inference optimization:</strong> MQA is primarily about making inference faster and more memory-efficient.</li>
+        <li><strong>Used by:</strong> PaLM, Falcon, StarCoder, and other inference-optimized models.</li>
+        <li><strong>Bandwidth-bound decode:</strong> The decode phase reads the entire KV cache for every token — shrinking it directly improves throughput.</li>
+        <li><strong>Can be retrofitted:</strong> An MHA model can be converted to MQA by averaging or selecting one set of KV heads, then fine-tuning briefly.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- GROUPED-QUERY ATTENTION -->
+  <!-- ============================================================ -->
+  <section id="grouped-query" class="topic">
+    <h2>5. Grouped-Query Attention (GQA)</h2>
+
+    <div class="concept">
+      <h3>Concept</h3>
+      <p>
+        <strong>Grouped-Query Attention</strong> is the middle ground between MHA and MQA.
+        Instead of every head having its own KV (MHA) or all heads sharing one KV (MQA),
+        GQA divides the query heads into <strong>groups</strong>, and each group shares one
+        set of Key and Value heads.
+      </p>
+      <p>
+        For example, with 32 query heads and 8 KV groups, every 4 query heads share the same
+        K and V. This gives a 4× reduction in KV cache size (compared to MHA) while retaining
+        much more representational capacity than MQA's single KV head.
+      </p>
+      <p>
+        GQA has become the de facto standard for modern LLMs. LLaMA 2 (70B), LLaMA 3,
+        Mistral, and Gemma all use GQA. It achieves nearly the same quality as MHA while
+        providing most of the inference efficiency benefits of MQA.
+      </p>
+    </div>
+
+    <div class="how-it-differs">
+      <h3>⚡ How It Differs</h3>
+      <ul>
+        <li><strong>MHA:</strong> h Q heads, h KV heads → full KV cache</li>
+        <li><strong>MQA:</strong> h Q heads, 1 KV head → minimal KV cache, some quality loss</li>
+        <li><strong>GQA:</strong> h Q heads, g KV heads (1 &lt; g &lt; h) → balanced KV cache, near-MHA quality</li>
+        <li>GQA with g=1 is equivalent to MQA; GQA with g=h is equivalent to MHA.</li>
+        <li>Typical configurations: 32 Q heads with 8 KV groups (LLaMA 2 70B), or 8 Q heads with 4 KV groups.</li>
+      </ul>
+    </div>
+
+    <div class="visual-container">
+      <h3>Interactive Visualization</h3>
+      <p class="visual-instructions">Click <strong>Play</strong> to see how GQA groups query heads to share KV heads — a spectrum between MHA and MQA. The animation shows 8 query heads with 4 KV groups.</p>
+      <div class="animation-controls">
+        <button class="btn-play" data-target="gqa-canvas">Play</button>
+        <button class="btn-reset" data-target="gqa-canvas">Reset</button>
+      </div>
+      <canvas id="gqa-canvas" width="760" height="430"></canvas>
+    </div>
+
+    <div class="key-points">
+      <h3>Key Points</h3>
+      <ul>
+        <li><strong>Best of both worlds:</strong> Near-MHA quality with significant KV cache savings.</li>
+        <li><strong>Industry standard:</strong> LLaMA 2/3, Mistral, Gemma, CodeLlama all use GQA.</li>
+        <li><strong>Tunable trade-off:</strong> The number of KV groups is a hyperparameter — more groups = better quality but larger cache.</li>
+        <li><strong>Uptraining:</strong> Existing MHA models can be converted to GQA by grouping and averaging KV heads, then fine-tuning for a small fraction of the original training compute.</li>
+      </ul>
+    </div>
+  </section>
+
+
+  <!-- ============================================================ -->
+  <!-- FLASH ATTENTION -->
+  <!-- ============================================================ -->
+  <section id="flash-attention" class="topic">
+    <h2>6. Flash Attention</h2>
+
+    <div class="concept">
+      <h3>Concept</h3>
+      <p>
+        <strong>Flash Attention</strong> (Dao et al., 2022) is an IO-aware exact attention
+        algorithm that dramatically reduces the memory footprint and wall-clock time of
+        attention computation — without any approximation. The key insight is that standard
+        attention is <em>memory-bandwidth bound</em>, not compute-bound: the bottleneck is
+        reading and writing the large N×N attention matrix to GPU high-bandwidth memory (HBM).
+      </p>
+      <p>
+        Flash Attention restructures the computation using <strong>tiling</strong>: instead of
+        materializing the full attention matrix in HBM, it processes the attention in small
+        blocks that fit in the GPU's fast on-chip SRAM (shared memory). Each tile computes a
+        partial softmax, and the results are combined using an online softmax algorithm that
+        maintains numerical correctness without ever storing the full matrix.
+      </p>
+      <p>
+        The result: Flash Attention reduces memory usage from O(N²) to O(N) and achieves
+        2–4× wall-clock speedup over standard PyTorch attention, because it minimizes the
+        number of reads/writes to slow HBM. Flash Attention 2 further optimizes the algorithm
+        with better work partitioning across GPU warps and thread blocks.
+      </p>
+    </div>
+
+    <div class="how-it-differs">
+      <h3>⚡ How It Differs from Standard Attention</h3>
+      <ul>
+        <li><strong>Standard:</strong> Computes full N×N attention matrix in HBM → O(N²) memory, many HBM reads/writes.</li>
+        <li><strong>Flash Attention:</strong> Tiles the computation into SRAM-sized blocks → O(N) memory, minimal HBM traffic.</li>
+        <li>Exact computation — not an approximation. Produces bit-identical results (up to floating-point ordering).</li>
+        <li>2–4× faster wall-clock time due to reduced memory bandwidth usage.</li>
+        <li>Enables much longer context lengths (since the N×N matrix is never materialized).</li>
+        <li>Fuses the entire attention operation (QK<sup>T</sup>, scaling, masking, softmax, dropout, V multiply) into a single kernel.</li>
+      </ul>
+    </div>
+
+    <div class="visual-container">
+      <h3>Interactive Visualization</h3>
+      <p class="visual-instructions">Click <strong>Play</strong> to compare standard attention (materializes full N×N matrix in HBM) vs Flash Attention (processes tiles in fast SRAM). Watch the memory access patterns.</p>
+      <div class="animation-controls">
+        <button class="btn-play" data-target="fa-canvas">Play</button>
+        <button class="btn-reset" data-target="fa-canvas">Reset</button>
+      </div>
+      <canvas id="fa-canvas" width="760" height="460"></canvas>
+    </div>
+
+    <div class="key-points">
+      <h3>Key Points</h3>
+      <ul>
+        <li><strong>IO-aware:</strong> The algorithm is designed around the GPU memory hierarchy (SRAM vs HBM), not just FLOPs.</li>
+        <li><strong>Exact, not approximate:</strong> Unlike sparse or linear attention variants, Flash Attention computes the exact same result.</li>
+        <li><strong>Universally adopted:</strong> Used by virtually all modern LLM training and inference systems (PyTorch 2.0+ includes it as <code>scaled_dot_product_attention</code>).</li>
+        <li><strong>Enables long context:</strong> By avoiding the O(N²) memory, models can train on 32K–128K+ token sequences.</li>
+        <li><strong>Flash Attention 2/3:</strong> Subsequent versions improve parallelism across warps and add features like variable-length sequences and FP8 support.</li>
+      </ul>
+    </div>
+  </section>
+
+  <footer>
+    <p>Built for <a href="https://shimomut.github.io/">shimomut.github.io</a></p>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>

@@ -3,3 +3,4 @@
 - [GenAI Technology Stack — Dependency Map](genai-tech-stack/)
 - [Parallelism Techniques for Large-Scale AI Model Training](https://shimomut.github.io/parallelism-techniques-for-ai-training/)
 - [Profiling Tools for AI Applications](profiling-tools-for-ai/)
+- [The Attention Mechanism — Core of the Transformer Architecture](attention-mechanism/)

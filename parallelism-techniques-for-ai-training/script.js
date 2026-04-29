@@ -21,6 +21,9 @@
     ep:      "#f472b6",
     sp:      "#22d3ee",
     red:     "#f87171",
+    orange:  "#fb923c",
+    yellow:  "#facc15",
+    green:   "#4ade80",
     white:   "#ffffff",
     bubble:  "rgba(255,255,255,0.06)",
   };
@@ -100,12 +103,19 @@
     if (!canvas) return null;
     const dpr = window.devicePixelRatio || 1;
     const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
+    const w = Math.round(rect.width);
+    const h = Math.round(rect.height);
+    if (w === 0 || h === 0) return null;
+    /* Only resize the backing store when the display size actually changed */
+    const needsResize = canvas.width !== w * dpr || canvas.height !== h * dpr;
+    if (needsResize) {
+      canvas.width = w * dpr;
+      canvas.height = h * dpr;
+    }
     const ctx = canvas.getContext("2d");
-    ctx.scale(dpr, dpr);
-    ctx._w = rect.width;
-    ctx._h = rect.height;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx._w = w;
+    ctx._h = h;
     return ctx;
   }
 

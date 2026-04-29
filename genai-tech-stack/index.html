@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html>
+<head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' http://localhost:8766; style-src 'unsafe-inline' http://localhost:8766 https://fonts.googleapis.com; font-src http://localhost:8766 https://fonts.gstatic.com; img-src data: blob: http://localhost:8766; connect-src http://localhost:8766; form-action 'none'; object-src 'none'; base-uri http://localhost:8766"><meta http-equiv="x-dns-prefetch-control" content="off"><meta charset="utf-8"><base id="qw-base" href="http://localhost:8766"><style id="qw-theme">:root {
+  --color-bg: #faf9fc;
+  --color-text: #1a1a1a;
+  --color-bg-secondary: #ffffff;
+  --color-bg-tertiary: #f9fafb;
+  --color-bg-hover: #f3f4f6;
+  --color-surface: #f9fafb;
+  --color-surface-hover: #f3f4f6;
+  --color-surface-active: #e5e7eb;
+  --color-border: rgba(0, 0, 0, .12);
+  --color-border-light: rgba(0, 0, 0, .06);
+  --color-border-strong: #d1d5db;
+  --color-primary: #9333ea;
+  --color-primary-light: #a855f7;
+  --color-primary-bg: #f3e8ff;
+  --color-primary-subtle: rgba(66, 0, 219, .12);
+  --color-primary-border: rgba(66, 0, 219, .3);
+  --color-nav-icon-active: rgb(66, 0, 219);
+  --color-nav-hover-border: rgb(66, 0, 219);
+  --color-primary-gradient-end: #e9d5ff;
+  --color-primary-bg-solid: #f3e8ff;
+  --color-user-bubble: #9333ea;
+  --color-focus-ring: rgba(147, 51, 234, .5);
+  --color-text-secondary: #5e5e5e;
+  --color-text-muted: #9ca3af;
+  --color-text-on-primary: #ffffff;
+  --color-success: #22c55e;
+  --color-success-dark: #16a34a;
+  --color-success-bg: rgba(34, 197, 94, .1);
+  --color-success-border: rgba(34, 197, 94, .3);
+  --color-error: #ef4444;
+  --color-error-dark: #dc2626;
+  --color-error-light: #f87171;
+  --color-error-bg: rgba(239, 68, 68, .1);
+  --color-error-border: rgba(239, 68, 68, .3);
+  --color-warning: #f59e0b;
+  --color-warning-dark: #d97706;
+  --color-warning-bg: rgba(245, 158, 11, .1);
+  --color-warning-border: rgba(245, 158, 11, .3);
+  --color-info: #3b82f6;
+  --color-info-dark: #2563eb;
+  --color-info-bg: rgba(59, 130, 246, .1);
+  --color-info-border: rgba(59, 130, 246, .3);
+  --color-overlay: rgba(0, 0, 0, .5);
+  --color-shadow: rgba(0, 0, 0, .08);
+  --color-hover: rgba(0, 0, 0, .05);
+  --color-tooltip-bg: rgba(0, 0, 0, .85);
+  --color-tooltip-text: #ffffff;
+  --color-voice-purple: #d946ef;
+  --color-voice-purple-dark: #c026d3;
+  --color-voice-purple-light: #e879f9;
+  --color-voice-red: #ef4444;
+  --color-voice-red-dark: #dc2626;
+  --color-voice-amber: #f59e0b;
+  --color-voice-purple-glow: rgba(217, 70, 239, .4);
+  --color-voice-red-glow: rgba(239, 68, 68, .4);
+  --font-sans: "Amazon Ember", "Helvetica Neue", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: "SF Mono", "Monaco", "Menlo", "Consolas", monospace;
+  --text-2xs: .5625rem;
+  --text-xs: .625rem;
+  --text-sm: .6875rem;
+  --text-base: .75rem;
+  --text-md: .8125rem;
+  --text-lg: .875rem;
+  --text-xl: 1rem;
+  --text-2xl: 1.125rem;
+  --text-3xl: 1.25rem;
+  --text-4xl: 1.5rem;
+  --text-5xl: 2rem;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-card: 12px;
+  --radius-lg: 16px;
+  --radius-pill: 17px;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, .05);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, .08);
+  --color-success-bg-solid: #d1fae5;
+  --color-error-bg-solid: #fee2e2;
+  --color-error-border-solid: #fecaca;
+  --color-warning-bg-solid: #fef3c7;
+  --color-warning-text: #92400e;
+  --color-info-bg-solid: #dbeafe;
+  --color-info-bg-solid-alt: #e0e7ff;
+  --color-info-text: #1e40af;
+  --color-info-text-alt: #4338ca;
+  --color-emerald: #10b981;
+  --color-teal: #4ecdc4;
+  --color-code-bg: #f6f8fa;
+  --color-code-header-bg: #f1f3f5;
+  --color-code-text: #24292e;
+  --color-code-border: #e1e4e8;
+  --color-code-muted: #6a737d;
+  --color-inline-code-bg: rgba(27, 31, 36, .07);
+  --color-inline-code-text: #1f2328;
+  --color-inline-code-border: rgba(27, 31, 36, .12);
+  --color-scrollbar-thumb: #d1d5db;
+  --color-scrollbar-track: transparent;
+  --color-graph-node-text: #333333;
+  --color-graph-node-text-dim: #7F8C8D;
+  --color-graph-edge-default: #95A5A6;
+  --color-graph-edge-cross: #E67E22;
+  --color-graph-edge-text: #666666;
+  --color-graph-edge-stroke: #ffffff;
+  --color-graph-highlight-bg: #FF6B6B;
+  --color-graph-highlight-border: #E74C3C;
+  --color-graph-search-bg: #FFD700;
+  --color-graph-search-border: #FFA500;
+  --color-graph-focus-border: #C0392B;
+  --color-graph-external-border: #95A5A6;
+  --color-graph-cat-file: #3498DB;
+  --color-graph-cat-folder: #7F8C8D;
+  --color-graph-cat-file-aggregate: #2980B9;
+  --color-graph-cat-class: #9B59B6;
+  --color-graph-cat-function: #2ECC71;
+  --color-graph-cat-method: #1ABC9C;
+  --color-graph-cat-variable: #F39C12;
+  --color-graph-cat-import: #D35400;
+  --color-graph-cat-module: #5B6ABF;
+  --color-graph-cat-concept: #E74C3C;
+  --color-graph-cat-person: #FF6B6B;
+  --color-graph-cat-org: #4ECDC4;
+  --color-graph-cat-organization: #4ECDC4;
+  --color-graph-cat-product: #A29BFE;
+  --color-graph-cat-metric: #FD79A8;
+  --color-graph-cat-location: #34495E;
+  --color-graph-cat-date: #E056A0;
+  --color-graph-cat-code: #3498DB;
+  --color-graph-cat-doc: #7F8C8D;
+  --color-graph-cat-url: #00B894;
+  --color-graph-cat-email: #6C5CE7;
+  --color-graph-cat-unknown: #BDC3C7;
+  --color-graph-rel-contains: #BDC3C7;
+  --color-graph-rel-extends: #9B59B6;
+  --color-graph-rel-implements: #3498DB;
+  --color-graph-rel-imports: #E67E22;
+  --color-graph-rel-uses: #2ECC71;
+  --color-graph-rel-calls: #27AE60;
+  --color-graph-rel-references: #F39C12;
+  --color-graph-rel-related-to: #95A5A6;
+  --color-graph-rel-works-on: #E74C3C;
+  --color-graph-rel-owns: #1ABC9C;
+  --color-graph-rel-depends-on: #E67E22;
+  --color-graph-rel-parent-of: #BDC3C7;
+  --react-pdf-text-layer: 1;
+  --highlight-bg-color: rgba(180, 0, 170, 1);
+  --highlight-selected-bg-color: rgba(0, 100, 0, 1);
+  --react-pdf-annotation-layer: 1;
+  --annotation-unfocused-field-background: url("data:image/svg+xml;charset=UTF-8,<svg width='1px' height='1px' xmlns='http://www.w3.org/2000/svg'><rect width='100%' height='100%' style='fill:rgba(0, 54, 255, 0.13);'/></svg>");
+  --input-focus-border-color: Highlight;
+  --input-focus-outline: 1px solid Canvas;
+  --input-unfocused-border-color: transparent;
+  --input-disabled-border-color: transparent;
+  --input-hover-border-color: black;
+  --link-outline: none;
+}
+body { background: var(--color-bg-secondary); }</style><style id="qw-print-fix">* { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; } @media print { body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } }</style>
+<meta charset="UTF-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--color-bg-secondary);
+    font-family: var(--font-sans);
+    padding: 20px;
+    color: var(--color-text);
+  }
+  h1 {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 4px;
+    color: var(--color-text);
+  }
+  .subtitle {
+    font-size: 12px;
+    color: var(--color-text-muted);
+    margin-bottom: 20px;
+  }
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 18px;
+    font-size: 11px; color: var(--color-text-secondary);
+  }
+  .legend-item { display: flex; align-items: center; gap: 5px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 3px; }
+
+  .stack { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 0; }
+  .layer {
+    display: flex; align-items: stretch; gap: 0;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--color-border-light);
+    background: var(--color-surface);
+  }
+  .layer-label {
+    min-width: 160px; max-width: 160px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.04em;
+    text-transform: uppercase; color: #fff; padding: 8px 10px;
+    text-align: center; line-height: 1.3;
+  }
+  .layer-content {
+    flex: 1; display: flex; flex-wrap: wrap; gap: 6px;
+    padding: 10px 14px; align-items: center;
+  }
+  .comp {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 5px 10px; border-radius: 6px;
+    font-size: 11.5px; font-weight: 500;
+    border: 1px solid transparent;
+    cursor: pointer; transition: all 0.15s ease;
+    position: relative;
+    color: var(--color-text);
+    background: var(--color-bg);
+  }
+  .comp:hover {
+    transform: translateY(-1px);
+    border-color: var(--color-primary);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+  }
+  .comp.highlighted {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px rgba(59,130,246,0.25);
+    font-weight: 700;
+  }
+  .comp.dimmed { opacity: 0.2; }
+
+  .main-layout {
+    display: flex; gap: 16px; align-items: flex-start;
+  }
+
+  .dep-panel {
+    width: 360px; min-width: 360px; padding: 16px 20px; border-radius: 8px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border-light);
+    display: none; font-size: 13px;
+    line-height: 1.6;
+    position: sticky; top: 20px;
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+  }
+  .dep-panel h3 { font-size: 16px; margin-bottom: 10px; color: var(--color-text); }
+  .dep-section { margin-bottom: 10px; }
+  .dep-label { font-weight: 600; color: var(--color-text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
+  .dep-list { color: var(--color-text-secondary); }
+  .tag {
+    display: inline-block; padding: 2px 8px; border-radius: 4px;
+    font-size: 11px; margin: 2px; background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border-light);
+  }
+  .explanation {
+    margin-top: 12px; padding-top: 12px;
+    border-top: 1px solid var(--color-border-light);
+  }
+  .explanation h4 {
+    font-size: 13px; font-weight: 600; color: var(--color-text);
+    margin-bottom: 6px;
+  }
+  .explanation p {
+    font-size: 12.5px; color: var(--color-text-secondary);
+    line-height: 1.7; margin-bottom: 6px;
+  }
+  .explanation .detail-row {
+    display: flex; gap: 16px; flex-wrap: wrap; margin-top: 8px;
+  }
+  .detail-item {
+    font-size: 11.5px; color: var(--color-text-muted);
+  }
+  .detail-item strong { color: var(--color-text-secondary); }
+  .detail-item a { color: var(--color-primary); text-decoration: none; word-break: break-all; }
+  .detail-item a:hover { text-decoration: underline; }
+
+  .hint { text-align: center; font-size: 11px; color: var(--color-text-muted); margin-top: 12px; }
+</style>
+</head>
+<body>
+<h1>GenAI Technology Stack — Dependency Map</h1>
+<p class="subtitle">Click any component to see dependencies, dependents, and a detailed explanation</p>
+
+<div class="legend" id="legend"></div>
+<div class="main-layout">
+  <div class="stack" id="stack"></div>
+  <div class="dep-panel" id="depPanel"></div>
+</div>
+<p class="hint">↑ Higher abstraction &nbsp;|&nbsp; ↓ Lower-level (closer to hardware)</p>
+
+<script>
+const layers = [
+  { name: 'Orchestration &\nMonitoring', color: '#6366f1',
+    comps: ['Docker','Kubernetes','llm-d','Ray','Slurm','torchrun','Nsight Systems','Nsight Compute','DCGM','Prometheus','W&B / MLflow'] },
+  { name: 'Safety &\nAlignment', color: '#dc2626',
+    comps: ['RLHF','DPO','TRL','Constitutional AI','RLAIF'] },
+  { name: 'Fine-tuning &\nAdaptation', color: '#a855f7',
+    comps: ['LoRA','QLoRA','PEFT','Prompt Tuning','Prefix Tuning','IA3'] },
+  { name: 'Data &\nTokenization', color: '#8b5cf6',
+    comps: ['HF Transformers','SentencePiece','tiktoken','HF Tokenizers','Arrow / Parquet','WebDataset','HF Datasets'] },
+  { name: 'Model\nFormats', color: '#0ea5e9',
+    comps: ['SafeTensors','GGUF','ONNX Format','Pickle / .bin','Checkpointing'] },
+  { name: 'Inference &\nServing', color: '#06b6d4',
+    comps: ['vLLM','TensorRT-LLM','Triton Inference Server','TGI','SGLang','llama.cpp','ONNX Runtime','Mooncake','LMCache'] },
+  { name: 'Training\nTools', color: '#ec4899',
+    comps: ['Megatron-LM','DeepSpeed','FSDP','NeMo','Flash Attention','Apex'] },
+  { name: 'Parallelism\nStrategies', color: '#e11d48',
+    comps: ['Data Parallel (DDP)','Tensor Parallel (TP)','Pipeline Parallel (PP)','Sequence Parallel (SP)','Expert Parallel (MoE)','Context Parallel (CP)'] },
+  { name: 'Quantization &\nOptimization', color: '#f59e0b',
+    comps: ['GPTQ','AWQ','bitsandbytes','SmoothQuant','Transformer Engine','torch.compile','Triton (OpenAI)'] },
+  { name: 'ML\nFrameworks', color: '#3b82f6',
+    comps: ['PyTorch','JAX','TensorFlow'] },
+  { name: 'Communication', color: '#f97316',
+    comps: ['NCCL','NIXL','MPI (Open MPI)','RDMA / InfiniBand','Libfabric'] },
+  { name: 'CUDA &\nRuntime', color: '#22c55e',
+    comps: ['CUDA Toolkit','cuDNN','cuBLAS','CUTLASS','CUDA Graphs'] },
+  { name: 'Drivers', color: '#14b8a6',
+    comps: ['NVIDIA Driver','EFA Driver','NVML'] },
+  { name: 'Hardware', color: '#64748b',
+    comps: ['GPU (A100/H100/B200)','NVLink / NVSwitch','InfiniBand / EFA NIC','CPU / Host Memory'] },
+];
+
+const deps = {
+  'GPU (A100/H100/B200)': [],
+  'NVLink / NVSwitch': ['GPU (A100/H100/B200)'],
+  'InfiniBand / EFA NIC': [],
+  'CPU / Host Memory': [],
+  'NVIDIA Driver': ['GPU (A100/H100/B200)'],
+  'EFA Driver': ['InfiniBand / EFA NIC'],
+
+  'NVML': ['NVIDIA Driver'],
+  'CUDA Toolkit': ['NVIDIA Driver','GPU (A100/H100/B200)'],
+  'cuDNN': ['CUDA Toolkit'],
+  'cuBLAS': ['CUDA Toolkit'],
+  'CUTLASS': ['CUDA Toolkit'],
+  'CUDA Graphs': ['CUDA Toolkit'],
+  'NCCL': ['CUDA Toolkit','NVLink / NVSwitch','Libfabric','NVIDIA Driver'],
+  'NIXL': ['CUDA Toolkit','RDMA / InfiniBand','Libfabric','NCCL'],
+  'MPI (Open MPI)': ['Libfabric'],
+  'RDMA / InfiniBand': ['InfiniBand / EFA NIC'],
+  'Libfabric': ['EFA Driver','InfiniBand / EFA NIC'],
+  'PyTorch': ['CUDA Toolkit','cuDNN','cuBLAS','NCCL','CPU / Host Memory'],
+  'JAX': ['CUDA Toolkit','cuDNN','cuBLAS','NCCL'],
+  'TensorFlow': ['CUDA Toolkit','cuDNN','cuBLAS','NCCL'],
+  'GPTQ': ['PyTorch','CUDA Toolkit'],
+  'AWQ': ['PyTorch','CUDA Toolkit'],
+  'bitsandbytes': ['PyTorch','CUDA Toolkit'],
+  'SmoothQuant': ['PyTorch'],
+  'Transformer Engine': ['PyTorch','CUDA Toolkit','cuBLAS','CUTLASS'],
+  'torch.compile': ['PyTorch','CUDA Toolkit'],
+  'Triton (OpenAI)': ['PyTorch','CUDA Toolkit'],
+  'Megatron-LM': ['PyTorch','NCCL','CUDA Toolkit','Transformer Engine','Flash Attention','Tensor Parallel (TP)','Pipeline Parallel (PP)','Sequence Parallel (SP)'],
+  'DeepSpeed': ['PyTorch','NCCL','CUDA Toolkit','Data Parallel (DDP)'],
+  'FSDP': ['PyTorch','NCCL','Data Parallel (DDP)'],
+  'NeMo': ['PyTorch','Megatron-LM','Transformer Engine'],
+  'Flash Attention': ['PyTorch','CUDA Toolkit','CUTLASS'],
+  'Apex': ['PyTorch','CUDA Toolkit'],
+  'vLLM': ['PyTorch','CUDA Toolkit','NCCL','Flash Attention','Ray','Tensor Parallel (TP)'],
+  'TensorRT-LLM': ['CUDA Toolkit','cuDNN','cuBLAS','NCCL','CUTLASS','Tensor Parallel (TP)'],
+  'Triton Inference Server': ['CUDA Toolkit','TensorRT-LLM'],
+  'TGI': ['PyTorch','CUDA Toolkit','Flash Attention'],
+  'SGLang': ['PyTorch','CUDA Toolkit','Flash Attention'],
+  'llama.cpp': ['CPU / Host Memory'],
+  'ONNX Runtime': ['CUDA Toolkit','cuDNN'],
+  'Mooncake': ['PyTorch','CUDA Toolkit','NCCL','NIXL','RDMA / InfiniBand'],
+  'LMCache': ['PyTorch','vLLM','SGLang'],
+  'HF Transformers': ['PyTorch','TensorFlow','JAX'],
+  'SentencePiece': [],
+  'tiktoken': [],
+  'HF Tokenizers': [],
+  'Arrow / Parquet': [],
+  'WebDataset': ['PyTorch'],
+  'HF Datasets': ['Arrow / Parquet'],
+  'Docker': [],
+  'Kubernetes': ['Docker'],
+  'llm-d': ['Kubernetes','vLLM'],
+  'Ray': ['PyTorch'],
+  'Slurm': [],
+  'torchrun': ['PyTorch','NCCL'],
+  'Nsight Systems': ['CUDA Toolkit','NVIDIA Driver'],
+  'Nsight Compute': ['CUDA Toolkit','NVIDIA Driver'],
+  'DCGM': ['NVML','NVIDIA Driver'],
+  'Prometheus': [],
+  'W&B / MLflow': [],
+  // Parallelism Strategies
+  'Data Parallel (DDP)': ['PyTorch','NCCL'],
+  'Tensor Parallel (TP)': ['NCCL','NVLink / NVSwitch'],
+  'Pipeline Parallel (PP)': ['NCCL','PyTorch'],
+  'Sequence Parallel (SP)': ['Tensor Parallel (TP)','NCCL'],
+  'Expert Parallel (MoE)': ['NCCL','PyTorch'],
+  'Context Parallel (CP)': ['NCCL','PyTorch','Flash Attention'],
+  // Fine-tuning & Adaptation
+  'LoRA': ['PyTorch','HF Transformers'],
+  'QLoRA': ['LoRA','bitsandbytes','PyTorch'],
+  'PEFT': ['PyTorch','HF Transformers','LoRA'],
+  'Prompt Tuning': ['PyTorch','HF Transformers'],
+  'Prefix Tuning': ['PyTorch','HF Transformers'],
+  'IA3': ['PyTorch','HF Transformers'],
+  // Safety & Alignment
+  'RLHF': ['PyTorch','HF Transformers','TRL'],
+  'DPO': ['PyTorch','HF Transformers','TRL'],
+  'TRL': ['PyTorch','HF Transformers','PEFT'],
+  'Constitutional AI': ['PyTorch','HF Transformers','RLHF'],
+  'RLAIF': ['PyTorch','HF Transformers','RLHF'],
+  // Model Formats
+  'SafeTensors': ['PyTorch','HF Transformers'],
+  'GGUF': ['llama.cpp'],
+  'ONNX Format': ['ONNX Runtime','PyTorch'],
+  'Pickle / .bin': ['PyTorch'],
+  'Checkpointing': ['PyTorch','FSDP','DeepSpeed'],
+};
+
+// Detailed explanations for each component
+const explanations = {
+  'GPU (A100/H100/B200)': {
+    desc: 'NVIDIA data center GPUs are the foundational compute hardware for GenAI. The A100 (Ampere, 80GB HBM2e) introduced 3rd-gen Tensor Cores. The H100 (Hopper, 80GB HBM3) added FP8 Tensor Cores and the Transformer Engine for 4× training speedup. The B200 (Blackwell) doubles that again with 2nd-gen Transformer Engine.',
+    context: 'Training', scope: 'Training + Inference', license: 'Proprietary (NVIDIA)',
+    url: 'https://www.nvidia.com/en-us/data-center/technologies/hopper-gpu-architecture/'
+  },
+  'NVLink / NVSwitch': {
+    desc: 'High-bandwidth interconnect for GPU-to-GPU communication within a single node. NVLink 4.0 (H100) provides 900 GB/s bidirectional bandwidth per GPU — 7× faster than PCIe Gen5. NVSwitch enables all-to-all GPU connectivity in a DGX system, critical for tensor parallelism where GPUs need to exchange activations at every layer.',
+    context: 'Intra-node distributed', scope: 'Training + Inference', license: 'Proprietary (NVIDIA)',
+    url: 'https://www.nvidia.com/en-us/data-center/nvlink/'
+  },
+  'InfiniBand / EFA NIC': {
+    desc: 'Network interface for inter-node communication. InfiniBand (400 Gb/s NDR) is the standard for on-prem GPU clusters. AWS Elastic Fabric Adapter (EFA) provides similar low-latency, high-bandwidth networking in the cloud with OS-bypass capability, enabling RDMA-like performance for NCCL collectives across nodes.',
+    context: 'Inter-node distributed', scope: 'Training + Inference', license: 'Hardware / AWS service',
+    url: 'https://aws.amazon.com/hpc/efa/'
+  },
+  'CPU / Host Memory': {
+    desc: 'The host processor and system RAM. Used for data preprocessing, tokenization, batch assembly, and orchestration. Also the execution target for CPU-only inference (llama.cpp). In training, CPU memory is used for ZeRO offloading (DeepSpeed) to extend effective GPU memory.',
+    context: 'General', scope: 'Training + Inference', license: 'N/A'
+  },
+  'NVIDIA Driver': {
+    desc: 'The kernel-mode driver that provides the OS interface to NVIDIA GPUs. It exposes the GPU\'s compute, memory management, and display capabilities to user-space software. Must be version-compatible with the CUDA Toolkit — a driver version supports all CUDA toolkit versions up to a certain point (forward compatibility).',
+    context: 'System', scope: 'Training + Inference', license: 'Proprietary (NVIDIA)',
+    url: 'https://www.nvidia.com/en-us/drivers/'
+  },
+  'EFA Driver': {
+    desc: 'Kernel module for AWS Elastic Fabric Adapter. Enables OS-bypass networking where applications (via Libfabric) can send/receive data directly from user space without kernel involvement, dramatically reducing latency. Required on every EC2 instance in a distributed training or inference cluster on AWS.',
+    context: 'AWS networking', scope: 'Training + Inference', license: 'Open source (AWS)',
+    url: 'https://github.com/amzn/amzn-drivers'
+  },
+
+  'NVML': {
+    desc: 'NVIDIA Management Library — a C-based API for monitoring and managing GPU devices. Provides programmatic access to GPU temperature, power draw, utilization, memory usage, ECC errors, and clock speeds. Used by DCGM, nvidia-smi, and monitoring tools like Prometheus exporters.',
+    context: 'Monitoring', scope: 'Operations', license: 'Proprietary (NVIDIA)',
+    url: 'https://developer.nvidia.com/management-library-nvml'
+  },
+  'CUDA Toolkit': {
+    desc: 'The core GPU programming platform. Includes the nvcc compiler, runtime API, driver API, and a suite of libraries (cuBLAS, cuDNN, cuFFT, cuRAND, etc.). CUDA provides the programming model (threads, blocks, grids) that all GPU-accelerated ML software is built on. Version compatibility between the toolkit, driver, and frameworks is one of the most common pain points in GenAI infrastructure.',
+    context: 'Core runtime', scope: 'Training + Inference', license: 'Proprietary (NVIDIA, free to use)',
+    url: 'https://developer.nvidia.com/cuda-toolkit'
+  },
+  'cuDNN': {
+    desc: 'CUDA Deep Neural Network library. Provides highly optimized implementations of standard DNN operations: convolutions, attention, normalization, activation functions, and RNNs. PyTorch and TensorFlow delegate most heavy compute to cuDNN. It selects the fastest algorithm variant at runtime based on input dimensions and GPU architecture (autotuning).',
+    context: 'DNN primitives', scope: 'Training + Inference', license: 'Proprietary (NVIDIA, free to use)',
+    url: 'https://developer.nvidia.com/cudnn'
+  },
+  'cuBLAS': {
+    desc: 'CUDA Basic Linear Algebra Subroutines. Provides GPU-accelerated matrix multiplication (GEMM), which is the dominant operation in transformer models. A single forward pass through a large LLM is essentially hundreds of large matrix multiplies. cuBLAS selects optimized kernels based on matrix dimensions, data types (FP16, BF16, FP8, INT8), and GPU architecture.',
+    context: 'Linear algebra', scope: 'Training + Inference', license: 'Proprietary (NVIDIA, free to use)',
+    url: 'https://developer.nvidia.com/cublas'
+  },
+  'CUTLASS': {
+    desc: 'CUDA Templates for Linear Algebra Subroutines — a collection of CUDA C++ template abstractions for implementing high-performance GEMM kernels. Unlike cuBLAS (precompiled), CUTLASS lets you write custom fused kernels. Flash Attention, Transformer Engine, and TensorRT-LLM all use CUTLASS to build specialized attention and GEMM kernels that fuse multiple operations.',
+    context: 'Custom kernels', scope: 'Training + Inference', license: 'Open source (BSD, NVIDIA)',
+    url: 'https://github.com/NVIDIA/cutlass'
+  },
+  'CUDA Graphs': {
+    desc: 'A CUDA feature that captures a sequence of GPU operations (kernel launches, memory copies) into a graph, then replays it with minimal CPU overhead. In LLM inference, the decode phase launches the same kernels repeatedly — CUDA Graphs eliminates the per-launch CPU overhead, improving throughput by 10-30% for small batch sizes. Used extensively by vLLM and TensorRT-LLM.',
+    context: 'Performance optimization', scope: 'Primarily Inference', license: 'Part of CUDA Toolkit',
+    url: 'https://developer.nvidia.com/blog/cuda-graphs/'
+  },
+  'NCCL': {
+    desc: 'NVIDIA Collective Communications Library. Implements multi-GPU and multi-node collective operations: AllReduce, AllGather, ReduceScatter, Broadcast, etc. These are the fundamental building blocks of distributed training — gradient synchronization (AllReduce in data parallelism), activation exchange (AllGather in tensor parallelism), and parameter sharding (ReduceScatter in FSDP/ZeRO). NCCL auto-detects NVLink, NVSwitch, PCIe, and network topology to choose optimal algorithms.',
+    context: 'Distributed compute', scope: 'Training + Inference', license: 'Open source (BSD, NVIDIA)',
+    url: 'https://github.com/NVIDIA/nccl'
+  },
+  'NIXL': {
+    desc: 'NVIDIA Inference Xfer Library — an open-source data transfer library purpose-built for disaggregated LLM inference. NIXL moves KV cache tensors between prefill GPUs and decode GPUs at wire speed over RDMA, NVMe, or shared memory. It abstracts the transport layer so inference engines (vLLM, SGLang, TensorRT-LLM) can efficiently transfer KV caches without managing low-level networking. A critical enabler for prefill/decode disaggregation architectures where different GPU pools handle different inference phases.',
+    context: 'Inference data transfer', scope: 'Inference', license: 'Open source (Apache 2.0, NVIDIA)',
+    url: 'https://github.com/ai-dynamo/nixl'
+  },
+  'MPI (Open MPI)': {
+    desc: 'Message Passing Interface — the standard for distributed process management in HPC. In GenAI, MPI is primarily used as a process launcher (mpirun) and for out-of-band coordination, while NCCL handles the actual GPU data transfers. Some legacy training scripts use MPI collectives directly, but most modern frameworks use NCCL for GPU communication and MPI/torchrun only for bootstrapping.',
+    context: 'Process management', scope: 'Training', license: 'Open source (BSD)',
+    url: 'https://www.open-mpi.org/'
+  },
+  'RDMA / InfiniBand': {
+    desc: 'Remote Direct Memory Access over InfiniBand fabric. Allows one machine to read/write another machine\'s memory without involving either CPU or OS kernel, achieving ultra-low latency (~1μs) and high bandwidth (400 Gb/s). NCCL uses RDMA verbs for inter-node GPU communication in on-prem clusters. AWS EFA provides similar RDMA-like semantics in the cloud.',
+    context: 'Inter-node transport', scope: 'Training + Inference', license: 'Hardware standard',
+    url: 'https://www.infinibandta.org/'
+  },
+  'Libfabric': {
+    desc: 'User-space fabric communication library (OpenFabrics Interfaces). Provides a unified API across different network fabrics — EFA, InfiniBand verbs, TCP sockets. NCCL and MPI use Libfabric as their transport layer on AWS. It provides connection management, message passing, and RDMA operations through a unified interface, abstracting the network hardware so upper layers don\'t need to know whether they\'re on EFA, InfiniBand, or ethernet.',
+    context: 'Network abstraction', scope: 'Training + Inference', license: 'Open source (BSD)',
+    url: 'https://ofiwg.github.io/libfabric/'
+  },
+  'PyTorch': {
+    desc: 'The dominant deep learning framework for GenAI. Provides automatic differentiation (autograd), GPU-accelerated tensor operations, and a Pythonic eager-execution model. Its ecosystem is massive: torch.distributed for multi-GPU training, torch.compile for JIT optimization, and deep integration with CUDA, cuDNN, and NCCL. Nearly all major LLMs (LLaMA, Mistral, Falcon) are trained and served with PyTorch.',
+    context: 'Core framework', scope: 'Training + Inference', license: 'Open source (BSD)',
+    url: 'https://pytorch.org/'
+  },
+  'JAX': {
+    desc: 'Google\'s ML framework combining NumPy semantics with XLA compilation and automatic differentiation. JAX compiles entire computation graphs to XLA HLO, enabling aggressive optimizations (operator fusion, memory planning). Used to train Google\'s largest models (Gemini, PaLM). Its functional programming model (pure functions + transformations like jit, grad, vmap, pmap) differs fundamentally from PyTorch\'s imperative style.',
+    context: 'Core framework', scope: 'Training + Inference', license: 'Open source (Apache 2.0)',
+    url: 'https://github.com/jax-ml/jax'
+  },
+  'TensorFlow': {
+    desc: 'Google\'s original production ML framework. While losing mindshare to PyTorch in research, it remains widely deployed in production via TensorFlow Serving, TFLite (mobile/edge), and TF.js (browser). Its graph-based execution model enables ahead-of-time optimization. Still used for recommendation models and some legacy training pipelines.',
+    context: 'Core framework', scope: 'Training + Inference', license: 'Open source (Apache 2.0)',
+    url: 'https://www.tensorflow.org/'
+  },
+  'GPTQ': {
+    desc: 'Post-training quantization method that compresses model weights to 4-bit or 3-bit integers with minimal accuracy loss. Uses second-order information (Hessian inverse) to find optimal quantized values. Reduces model size by 4× and enables running 70B-parameter models on a single GPU. The quantization is applied once offline; inference uses custom CUDA kernels for dequantization during matrix multiply.',
+    context: 'Model compression', scope: 'Inference', license: 'Open source (MIT)',
+    url: 'https://github.com/AutoGPTQ/AutoGPTQ'
+  },
+  'AWQ': {
+    desc: 'Activation-Aware Weight Quantization. Identifies the ~1% of weights that are critical for accuracy (based on activation magnitudes) and protects them during quantization. Achieves better accuracy than naive INT4 quantization, especially for small models. Faster kernel implementation than GPTQ for inference. Supported natively by vLLM and TGI.',
+    context: 'Model compression', scope: 'Inference', license: 'Open source (MIT)',
+    url: 'https://github.com/mit-han-lab/llm-awq'
+  },
+  'bitsandbytes': {
+    desc: 'Library for 8-bit and 4-bit quantization of both optimizers (for training) and weights (for inference). Its 8-bit Adam optimizer enables fine-tuning large models with 50% less GPU memory. The 4-bit NormalFloat (NF4) data type is the foundation of QLoRA — fine-tuning a 4-bit quantized base model with trainable LoRA adapters.',
+    context: 'Quantization + Fine-tuning', scope: 'Training + Inference', license: 'Open source (MIT)',
+    url: 'https://github.com/bitsandbytes-foundation/bitsandbytes'
+  },
+  'SmoothQuant': {
+    desc: 'Quantization technique that smooths activation outliers by migrating quantization difficulty from activations to weights. Transformers have a few channels with very large activation values that break naive INT8 quantization. SmoothQuant applies a per-channel scaling that balances the dynamic range between weights and activations, enabling accurate INT8 inference (W8A8).',
+    context: 'INT8 inference', scope: 'Inference', license: 'Open source (MIT)',
+    url: 'https://github.com/mit-han-lab/smoothquant'
+  },
+  'Transformer Engine': {
+    desc: 'NVIDIA\'s library for FP8 mixed-precision training on Hopper and Blackwell GPUs. It dynamically selects FP8 vs FP16/BF16 precision per layer based on tensor statistics, using a delayed scaling algorithm that tracks value distributions. FP8 doubles the throughput of Tensor Cores compared to FP16/BF16. Critical component of Megatron-LM for large-scale training.',
+    context: 'FP8 training', scope: 'Training', license: 'Open source (Apache 2.0, NVIDIA)',
+    url: 'https://github.com/NVIDIA/TransformerEngine'
+  },
+  'torch.compile': {
+    desc: 'PyTorch\'s JIT compiler (introduced in PyTorch 2.0). Traces a model\'s Python code into a graph, applies optimizations (operator fusion, memory planning), and generates optimized kernels via backends like TorchInductor (which uses Triton). Can speed up training and inference by 20-50% with a single line of code. Works with dynamic shapes and Python control flow.',
+    context: 'Compiler optimization', scope: 'Training + Inference', license: 'Open source (BSD, part of PyTorch)',
+    url: 'https://pytorch.org/docs/stable/torch.compiler.html'
+  },
+  'Triton (OpenAI)': {
+    desc: 'A Python-based language for writing GPU kernels without CUDA C++. Triton compiles Python-like code to optimized GPU machine code, handling tiling, memory coalescing, and shared memory automatically. It\'s the backend for torch.compile/TorchInductor and is used to write custom kernels (e.g., fused attention variants, quantized matmuls) with much less effort than raw CUDA.',
+    context: 'Kernel authoring', scope: 'Training + Inference', license: 'Open source (MIT)',
+    url: 'https://github.com/triton-lang/triton'
+  },
+  'Megatron-LM': {
+    desc: 'NVIDIA\'s framework for training massive language models. Implements 3D parallelism: tensor parallelism (split layers across GPUs), pipeline parallelism (split model stages across nodes), and data parallelism. Combined with Transformer Engine for FP8 and sequence parallelism for long contexts. Used to train models from 1B to 1T+ parameters. Requires careful tuning of parallelism dimensions to match cluster topology.',
+    context: 'Large-scale training', scope: 'Training', license: 'Open source (Apache 2.0, NVIDIA)',
+    url: 'https://github.com/NVIDIA/Megatron-LM'
+  },
+  'DeepSpeed': {
+    desc: 'Microsoft\'s distributed training library built on PyTorch. Its core innovation is ZeRO (Zero Redundancy Optimizer) which partitions optimizer states, gradients, and parameters across GPUs to reduce memory footprint. ZeRO Stage 3 enables training models that don\'t fit on a single GPU. Also provides pipeline parallelism, sparse attention, and ZeRO-Offload (CPU/NVMe offloading).',
+    context: 'Distributed training', scope: 'Training', license: 'Open source (Apache 2.0)',
+    url: 'https://github.com/microsoft/DeepSpeed'
+  },
+  'FSDP': {
+    desc: 'Fully Sharded Data Parallel — PyTorch\'s native equivalent of ZeRO Stage 3. Shards model parameters, gradients, and optimizer states across GPUs, gathering them on-demand for each forward/backward pass. Being native to PyTorch, it integrates cleanly with torch.compile, mixed precision, and activation checkpointing. Preferred over DeepSpeed for many new projects due to simpler configuration.',
+    context: 'Distributed training', scope: 'Training', license: 'Open source (BSD, part of PyTorch)',
+    url: 'https://pytorch.org/docs/stable/fsdp.html'
+  },
+  'NeMo': {
+    desc: 'NVIDIA\'s end-to-end framework for building, training, and deploying generative AI models. Built on top of PyTorch, Megatron-LM, and Transformer Engine. Provides pre-built recipes for LLM training, speech (ASR/TTS), and multimodal models. Handles data preprocessing, distributed training configuration, and export to TensorRT-LLM for optimized inference.',
+    context: 'End-to-end platform', scope: 'Training + Inference', license: 'Open source (Apache 2.0, NVIDIA)',
+    url: 'https://github.com/NVIDIA/NeMo'
+  },
+  'Flash Attention': {
+    desc: 'An IO-aware exact attention algorithm that avoids materializing the full N×N attention matrix in GPU HBM. Instead, it tiles the computation and keeps intermediate results in fast SRAM (shared memory), reducing memory usage from O(N²) to O(N) and improving speed by 2-4×. A critical dependency for both training (enables longer sequences) and inference (faster prefill). Flash Attention 2 further optimizes parallelism across the sequence dimension.',
+    context: 'Attention optimization', scope: 'Training + Inference', license: 'Open source (BSD)',
+    url: 'https://github.com/Dao-AILab/flash-attention'
+  },
+  'Apex': {
+    desc: 'NVIDIA\'s PyTorch extension providing fused optimizers (FusedAdam, FusedLAMB) and the original AMP (Automatic Mixed Precision) implementation. Fused optimizers combine the parameter update step into a single CUDA kernel instead of multiple Python-level operations. Largely superseded by PyTorch\'s native AMP and torch.optim, but still used in some legacy codebases and Megatron-LM.',
+    context: 'Training optimization', scope: 'Training', license: 'Open source (BSD, NVIDIA)',
+    url: 'https://github.com/NVIDIA/apex'
+  },
+  'vLLM': {
+    desc: 'High-throughput LLM inference engine from UC Berkeley. Its core innovation is PagedAttention, which manages KV cache memory like virtual memory pages — non-contiguous allocation eliminates fragmentation and waste. Combined with continuous batching (dynamic batching of requests at the iteration level), it achieves 2-4× higher throughput than naive serving. Supports tensor parallelism, speculative decoding, and an OpenAI-compatible API.',
+    context: 'LLM serving', scope: 'Inference', license: 'Open source (Apache 2.0)',
+    url: 'https://github.com/vllm-project/vllm'
+  },
+  'TensorRT-LLM': {
+    desc: 'NVIDIA\'s optimized LLM inference engine. Compiles models into TensorRT engines with fused kernels, FP8/INT8 quantization, and custom attention implementations. Supports in-flight batching, paged KV cache, tensor parallelism, and speculative decoding. Achieves the highest single-GPU throughput on NVIDIA hardware but requires an explicit compilation step and is less flexible than vLLM for rapid model iteration.',
+    context: 'LLM serving', scope: 'Inference', license: 'Open source (Apache 2.0, NVIDIA)',
+    url: 'https://github.com/NVIDIA/TensorRT-LLM'
+  },
+  'Triton Inference Server': {
+    desc: 'NVIDIA\'s model serving platform that supports multiple frameworks (TensorRT, PyTorch, TensorFlow, ONNX) behind a unified API. Provides dynamic batching, model ensembles, model versioning, and concurrent model execution. Often used as the front-end server with TensorRT-LLM as the backend engine. Supports gRPC and HTTP/REST protocols.',
+    context: 'Model serving', scope: 'Inference', license: 'Open source (BSD, NVIDIA)',
+    url: 'https://github.com/triton-inference-server/server'
+  },
+  'TGI': {
+    desc: 'HuggingFace\'s Text Generation Inference server. Written in Rust (for the router) with Python/PyTorch backends. Supports continuous batching, Flash Attention, tensor parallelism, and quantization (GPTQ, AWQ, bitsandbytes). Tightly integrated with the HuggingFace model hub — deploy any compatible model with a single command. Used by HuggingFace\'s Inference Endpoints service.',
+    context: 'LLM serving', scope: 'Inference', license: 'Open source (Apache 2.0)',
+    url: 'https://github.com/huggingface/text-generation-inference'
+  },
+  'SGLang': {
+    desc: 'Structured Generation Language — a serving framework optimized for complex LLM programs with multiple generation calls, branching, and constrained decoding. Its RadixAttention engine efficiently reuses KV cache across requests that share common prefixes. Faster than vLLM for multi-turn and agentic workloads where prefix sharing is high.',
+    context: 'LLM serving', scope: 'Inference', license: 'Open source (Apache 2.0)',
+    url: 'https://github.com/sgl-project/sglang'
+  },
+  'llama.cpp': {
+    desc: 'C/C++ implementation of LLaMA inference that runs on CPU (and optionally GPU via Metal, CUDA, Vulkan). Uses GGUF quantized model format supporting 2-bit to 8-bit quantization. Enables running 7B-70B models on consumer hardware (laptops, desktops) without NVIDIA GPUs. The foundation of many local AI tools (Ollama, LM Studio, GPT4All).',
+    context: 'CPU/edge inference', scope: 'Inference', license: 'Open source (MIT)',
+    url: 'https://github.com/ggerganov/llama.cpp'
+  },
+  'ONNX Runtime': {
+    desc: 'Microsoft\'s cross-platform inference runtime. Executes models in ONNX format with optimization passes (graph fusion, constant folding) and hardware-specific execution providers (CUDA, TensorRT, DirectML, OpenVINO). Useful for deploying models across diverse hardware. Less LLM-specific than vLLM/TRT-LLM but widely used for non-generative models and edge deployment.',
+    context: 'Cross-platform inference', scope: 'Inference', license: 'Open source (MIT)',
+    url: 'https://onnxruntime.ai/'
+  },
+  'Mooncake': {
+    desc: 'A KVCache-centric disaggregated serving platform originally built for Moonshot AI\'s Kimi service. Mooncake separates prefill and decode into independent clusters and uses underutilized CPU, DRAM, and SSD resources to build a distributed KV cache pool. It provides high-throughput, low-latency KV cache storage and transfer for inference engines like SGLang and vLLM. Now part of the PyTorch ecosystem and a CNCF project, it is a key building block for production disaggregated inference architectures.',
+    context: 'Disaggregated inference', scope: 'Inference', license: 'Open source (Apache 2.0)',
+    url: 'https://github.com/kvcache-ai/Mooncake'
+  },
+  'LMCache': {
+    desc: 'An open-source KV cache management layer for enterprise-scale LLM inference. LMCache extracts, stores, and shares KV caches generated by vLLM and SGLang across engines and queries. It enables prefix caching (reusing KV caches for shared system prompts), multi-turn conversation acceleration, and cross-engine cache sharing — all by offloading KV caches to CPU memory, SSD, or remote storage. Reduces redundant prefill computation and improves throughput for workloads with high prompt reuse.',
+    context: 'KV cache optimization', scope: 'Inference', license: 'Open source (Apache 2.0)',
+    url: 'https://github.com/LMCache/LMCache'
+  },
+  'HF Transformers': {
+    desc: 'The standard library for working with pre-trained models. Provides a unified API (AutoModel, AutoTokenizer, pipeline) for 200k+ models on the HuggingFace Hub. Handles model loading, tokenization, and generation with a consistent interface across architectures. The starting point for most LLM projects before moving to specialized serving frameworks.',
+    context: 'Model library', scope: 'Training + Inference', license: 'Open source (Apache 2.0)',
+    url: 'https://github.com/huggingface/transformers'
+  },
+  'SentencePiece': {
+    desc: 'Google\'s unsupervised text tokenizer implementing BPE and Unigram language model algorithms. Operates directly on raw text without pre-tokenization, making it language-agnostic. Used by LLaMA, T5, and many multilingual models. Trains a vocabulary from a text corpus and produces subword tokens — the input representation that all transformer models consume.',
+    context: 'Tokenization', scope: 'Training + Inference', license: 'Open source (Apache 2.0)',
+    url: 'https://github.com/google/sentencepiece'
+  },
+  'tiktoken': {
+    desc: 'OpenAI\'s fast BPE tokenizer written in Rust with Python bindings. Used by GPT-3.5, GPT-4, and related models. Implements byte-level BPE with special token handling. Notable for its speed (3-6× faster than HuggingFace Tokenizers for encoding) and exact compatibility with OpenAI\'s API token counting.',
+    context: 'Tokenization', scope: 'Training + Inference', license: 'Open source (MIT)',
+    url: 'https://github.com/openai/tiktoken'
+  },
+  'HF Tokenizers': {
+    desc: 'HuggingFace\'s Rust-based tokenizer library. Implements BPE, WordPiece, Unigram, and other algorithms with a unified pipeline (normalization → pre-tokenization → model → post-processing). Extremely fast (can encode 1GB of text in <20s). Used by HF Transformers for most model architectures.',
+    context: 'Tokenization', scope: 'Training + Inference', license: 'Open source (Apache 2.0)',
+    url: 'https://github.com/huggingface/tokenizers'
+  },
+  'Arrow / Parquet': {
+    desc: 'Apache Arrow is an in-memory columnar data format optimized for analytical workloads. Parquet is its on-disk counterpart. Together they enable zero-copy reads, efficient filtering, and fast data loading for training datasets. HuggingFace Datasets uses Arrow as its backend, enabling memory-mapped access to datasets larger than RAM.',
+    context: 'Data storage', scope: 'Training', license: 'Open source (Apache 2.0)',
+    url: 'https://arrow.apache.org/'
+  },
+  'WebDataset': {
+    desc: 'A PyTorch-compatible library for reading training data from tar archives using sequential/streaming access. Designed for large-scale distributed training where datasets are stored on cloud storage (S3, GCS). Avoids the random-access overhead of traditional datasets by streaming sharded tar files, with built-in shuffling and parallel loading.',
+    context: 'Data loading', scope: 'Training', license: 'Open source (BSD)',
+    url: 'https://github.com/webdataset/webdataset'
+  },
+  'HF Datasets': {
+    desc: 'HuggingFace\'s data loading library. Provides access to 100k+ datasets on the Hub with streaming, caching, and memory-mapping via Apache Arrow. Supports common data processing operations (map, filter, sort) that execute out-of-core on datasets larger than RAM. The standard tool for data preparation in LLM fine-tuning.',
+    context: 'Data processing', scope: 'Training', license: 'Open source (Apache 2.0)',
+    url: 'https://github.com/huggingface/datasets'
+  },
+  'Docker': {
+    desc: 'Container runtime that packages the entire software stack (CUDA, PyTorch, libraries) into reproducible images. NVIDIA\'s NGC catalog provides pre-built Docker images with optimized configurations. The nvidia-container-toolkit enables GPU access from inside containers. Essential for reproducible environments and deployment consistency.',
+    context: 'Containerization', scope: 'Training + Inference', license: 'Open source (Apache 2.0)',
+    url: 'https://www.docker.com/'
+  },
+  'Kubernetes': {
+    desc: 'Container orchestration platform for managing inference serving clusters. Handles scaling, load balancing, rolling updates, and health checks for model serving deployments. With GPU scheduling plugins and operators (e.g., KubeFlow, NVIDIA GPU Operator), it manages GPU allocation across multiple models and replicas.',
+    context: 'Orchestration', scope: 'Inference (primarily)', license: 'Open source (Apache 2.0)',
+    url: 'https://kubernetes.io/'
+  },
+  'llm-d': {
+    desc: 'A Kubernetes-native distributed LLM inference framework backed by Red Hat, Google, IBM, CoreWeave, and NVIDIA. Built on vLLM and the Kubernetes Inference Gateway, llm-d provides KV-cache-aware routing, disaggregated prefill/decode serving, and intelligent load balancing for LLM deployments. Donated to CNCF Sandbox in 2026. It bridges the gap between raw inference engines and production Kubernetes operations, offering a modular, end-to-end serving solution with the fastest time-to-value for teams deploying large models at scale.',
+    context: 'Distributed inference orchestration', scope: 'Inference', license: 'Open source (Apache 2.0)',
+    url: 'https://github.com/llm-d/llm-d'
+  },
+  'Ray': {
+    desc: 'Distributed compute framework used by vLLM as its execution backend. Ray manages worker processes across GPUs and nodes, handles scheduling, and provides actor-based parallelism. Ray Serve adds HTTP serving capabilities. Also used for distributed hyperparameter tuning (Ray Tune) and data processing (Ray Data) in ML pipelines.',
+    context: 'Distributed runtime', scope: 'Training + Inference', license: 'Open source (Apache 2.0)',
+    url: 'https://www.ray.io/'
+  },
+  'Slurm': {
+    desc: 'HPC job scheduler and resource manager. The standard for managing GPU training clusters — submits jobs, allocates GPUs across nodes, manages queues and priorities. Training scripts are launched as Slurm jobs (sbatch) which set up the distributed environment (MASTER_ADDR, MASTER_PORT, WORLD_SIZE) before calling torchrun or mpirun.',
+    context: 'Job scheduling', scope: 'Training', license: 'Open source (GPL)',
+    url: 'https://slurm.schedmd.com/'
+  },
+  'torchrun': {
+    desc: 'PyTorch\'s built-in distributed process launcher (replacement for torch.distributed.launch). Starts one process per GPU, sets up environment variables (RANK, LOCAL_RANK, WORLD_SIZE), and initializes the process group for NCCL communication. Supports elastic training (processes can join/leave) and fault tolerance with automatic restarts.',
+    context: 'Process launcher', scope: 'Training', license: 'Open source (BSD, part of PyTorch)',
+    url: 'https://pytorch.org/docs/stable/elastic/run.html'
+  },
+  'Nsight Systems': {
+    desc: 'NVIDIA\'s system-wide performance profiler. Captures a timeline of CPU and GPU activity — kernel launches, memory transfers, NCCL collectives, CUDA API calls — showing how they overlap and where bubbles occur. Essential for identifying pipeline stalls, communication bottlenecks, and poor GPU utilization in distributed training.',
+    context: 'Profiling', scope: 'Training + Inference', license: 'Proprietary (NVIDIA, free to use)',
+    url: 'https://developer.nvidia.com/nsight-systems'
+  },
+  'Nsight Compute': {
+    desc: 'NVIDIA\'s kernel-level GPU profiler. Analyzes individual CUDA kernels for compute throughput, memory bandwidth utilization, warp occupancy, and instruction mix. Used when optimizing custom CUDA/Triton kernels — identifies whether a kernel is compute-bound or memory-bound and which hardware units are underutilized.',
+    context: 'Kernel profiling', scope: 'Development', license: 'Proprietary (NVIDIA, free to use)',
+    url: 'https://developer.nvidia.com/nsight-compute'
+  },
+  'DCGM': {
+    desc: 'Data Center GPU Manager. Provides health monitoring, diagnostics, and policy management for GPU clusters. Tracks GPU utilization, memory errors (ECC), thermal throttling, and NVLink status across hundreds of GPUs. Integrates with Prometheus/Grafana for alerting. Critical for maintaining cluster health during long training runs.',
+    context: 'GPU fleet management', scope: 'Operations', license: 'Proprietary (NVIDIA, free to use)',
+    url: 'https://developer.nvidia.com/dcgm'
+  },
+  'Prometheus': {
+    desc: 'Open-source monitoring system with a time-series database. Scrapes metrics endpoints (DCGM exporter, vLLM metrics, node exporter) and stores them for querying and alerting. Combined with Grafana for dashboards. The standard observability stack for both training cluster monitoring and inference serving metrics (latency, throughput, queue depth).',
+    context: 'Monitoring', scope: 'Operations', license: 'Open source (Apache 2.0)',
+    url: 'https://prometheus.io/'
+  },
+  'W&B / MLflow': {
+    desc: 'Experiment tracking platforms. Weights & Biases and MLflow log training metrics (loss curves, learning rate, gradient norms), hyperparameters, and artifacts (checkpoints, configs) for each training run. Enable comparison across runs, reproducibility, and team collaboration. W&B adds collaborative dashboards; MLflow adds model registry and deployment pipelines.',
+    context: 'Experiment tracking', scope: 'Training', license: 'W&B: SaaS/Enterprise; MLflow: Open source (Apache 2.0)',
+    url: 'https://wandb.ai/'
+  },
+  // Parallelism Strategies
+  'Data Parallel (DDP)': {
+    desc: 'Distributed Data Parallel — the simplest and most common parallelism strategy. Each GPU holds a full copy of the model and processes a different mini-batch. Gradients are synchronized via AllReduce (NCCL) after each backward pass. Scales linearly with GPU count for models that fit in a single GPU\'s memory. PyTorch\'s DistributedDataParallel is the standard implementation.',
+    context: 'Distributed training', scope: 'Training', license: 'Concept (implemented in PyTorch, DeepSpeed, etc.)',
+    url: 'https://pytorch.org/docs/stable/notes/ddp.html'
+  },
+  'Tensor Parallel (TP)': {
+    desc: 'Splits individual layers (weight matrices) across multiple GPUs. For a linear layer with weight W, TP partitions W column-wise or row-wise so each GPU computes a slice of the output. Requires AllReduce or AllGather at every layer boundary, so it demands high-bandwidth interconnects (NVLink). Typically used within a single node (4-8 GPUs). Megatron-LM pioneered this approach for transformers.',
+    context: 'Intra-layer parallelism', scope: 'Training + Inference', license: 'Concept (implemented in Megatron-LM, vLLM, etc.)',
+    url: 'https://arxiv.org/abs/1909.08053'
+  },
+  'Pipeline Parallel (PP)': {
+    desc: 'Splits the model by layers across GPUs — GPU 0 runs layers 0-15, GPU 1 runs layers 16-31, etc. Micro-batching (splitting a batch into smaller chunks) keeps all GPUs busy and reduces the pipeline bubble. Megatron-LM uses interleaved scheduling to further minimize idle time. Best for very deep models that span multiple nodes where NVLink isn\'t available between all GPUs.',
+    context: 'Inter-layer parallelism', scope: 'Training', license: 'Concept (implemented in Megatron-LM, DeepSpeed, etc.)',
+    url: 'https://arxiv.org/abs/1811.06965'
+  },
+  'Sequence Parallel (SP)': {
+    desc: 'Extends tensor parallelism to operations that are normally replicated across GPUs — LayerNorm, Dropout, and activation storage. Instead of each GPU holding the full activation tensor, SP partitions activations along the sequence dimension. Reduces memory usage proportionally to the TP degree. Introduced in Megatron-LM v3 and critical for training with long sequences.',
+    context: 'Memory optimization', scope: 'Training', license: 'Concept (implemented in Megatron-LM)',
+    url: 'https://arxiv.org/abs/2205.05198'
+  },
+  'Expert Parallel (MoE)': {
+    desc: 'Parallelism strategy for Mixture-of-Experts models where different experts are placed on different GPUs. Each token is routed to a subset of experts (typically top-2), and All-to-All communication exchanges tokens between GPUs. Enables scaling model capacity (total parameters) without proportionally scaling compute per token. Used in models like Mixtral, Switch Transformer, and GPT-4.',
+    context: 'Sparse models', scope: 'Training + Inference', license: 'Concept (implemented in Megatron-LM, DeepSpeed, etc.)',
+    url: 'https://arxiv.org/abs/2101.03961'
+  },
+  'Context Parallel (CP)': {
+    desc: 'Partitions the input sequence across GPUs for attention computation, enabling training on extremely long sequences (100k+ tokens). Each GPU computes attention for its chunk and exchanges KV cache slices with other GPUs via ring-style communication. Combined with Flash Attention for memory efficiency. Introduced in Megatron-LM for long-context LLM training.',
+    context: 'Long-context training', scope: 'Training', license: 'Concept (implemented in Megatron-LM)',
+    url: 'https://arxiv.org/abs/2405.07719'
+  },
+  // Fine-tuning & Adaptation
+  'LoRA': {
+    desc: 'Low-Rank Adaptation — injects small trainable rank-decomposition matrices (A and B) into frozen pre-trained weight matrices. Instead of fine-tuning all parameters, only the low-rank matrices are trained (typically 0.1-1% of total parameters). Reduces GPU memory requirements dramatically and produces small adapter files (~10-100MB) that can be swapped at serving time. The dominant fine-tuning method for LLMs.',
+    context: 'Parameter-efficient fine-tuning', scope: 'Training', license: 'Open source (Apache 2.0)',
+    url: 'https://arxiv.org/abs/2106.09685'
+  },
+  'QLoRA': {
+    desc: 'Quantized LoRA — combines 4-bit NormalFloat quantization of the base model (via bitsandbytes) with LoRA adapters trained in BF16. Enables fine-tuning a 65B-parameter model on a single 48GB GPU. The base model weights are frozen in 4-bit, while LoRA adapters and gradients use higher precision. Paged optimizers handle memory spikes during gradient checkpointing.',
+    context: 'Memory-efficient fine-tuning', scope: 'Training', license: 'Open source (MIT)',
+    url: 'https://arxiv.org/abs/2305.14314'
+  },
+  'PEFT': {
+    desc: 'HuggingFace\'s Parameter-Efficient Fine-Tuning library. Provides a unified interface for LoRA, QLoRA, Prefix Tuning, Prompt Tuning, IA3, and other adapter methods. Integrates with HF Transformers and TRL for seamless fine-tuning workflows. Handles adapter merging, multi-adapter inference, and checkpoint management.',
+    context: 'Fine-tuning library', scope: 'Training', license: 'Open source (Apache 2.0)',
+    url: 'https://github.com/huggingface/peft'
+  },
+  'Prompt Tuning': {
+    desc: 'Prepends a set of learnable "soft prompt" embeddings to the input while keeping the entire model frozen. Only the prompt embeddings (typically 10-100 tokens) are trained — far fewer parameters than even LoRA. Performance approaches full fine-tuning as model size increases. Multiple task-specific prompts can be served from a single base model.',
+    context: 'Parameter-efficient fine-tuning', scope: 'Training', license: 'Concept (implemented in PEFT)',
+    url: 'https://arxiv.org/abs/2104.08691'
+  },
+  'Prefix Tuning': {
+    desc: 'Prepends trainable prefix vectors to the key and value matrices at every transformer layer, not just the input embedding. More expressive than Prompt Tuning because it influences attention at every layer. The prefix parameters are typically 0.1% of the model size. Effective for generation tasks where controlling the model\'s behavior at each layer matters.',
+    context: 'Parameter-efficient fine-tuning', scope: 'Training', license: 'Concept (implemented in PEFT)',
+    url: 'https://arxiv.org/abs/2101.00190'
+  },
+  'IA3': {
+    desc: 'Infused Adapter by Inhibiting and Amplifying Inner Activations. Learns three rescaling vectors that multiply the keys, values, and feed-forward intermediate activations. Even fewer trainable parameters than LoRA (typically 10× fewer). Particularly effective for few-shot learning scenarios where training data is limited.',
+    context: 'Parameter-efficient fine-tuning', scope: 'Training', license: 'Concept (implemented in PEFT)',
+    url: 'https://arxiv.org/abs/2205.05638'
+  },
+  // Safety & Alignment
+  'RLHF': {
+    desc: 'Reinforcement Learning from Human Feedback — the alignment technique that made ChatGPT possible. A three-stage process: (1) supervised fine-tuning on demonstrations, (2) training a reward model on human preference comparisons, (3) optimizing the LLM policy with PPO against the reward model. Computationally expensive — requires running 4 models simultaneously (policy, reference, reward, value).',
+    context: 'Alignment', scope: 'Training', license: 'Concept (implemented in TRL, etc.)',
+    url: 'https://arxiv.org/abs/2203.02155'
+  },
+  'DPO': {
+    desc: 'Direct Preference Optimization — a simpler alternative to RLHF that eliminates the need for a separate reward model and RL training loop. Directly optimizes the policy from preference pairs using a classification-like loss. Achieves comparable alignment quality to RLHF with significantly less compute and complexity. Rapidly becoming the preferred alignment method.',
+    context: 'Alignment', scope: 'Training', license: 'Concept (implemented in TRL, etc.)',
+    url: 'https://arxiv.org/abs/2305.18290'
+  },
+  'TRL': {
+    desc: 'Transformer Reinforcement Learning — HuggingFace\'s library for training language models with reinforcement learning. Provides implementations of SFT (supervised fine-tuning), reward modeling, PPO (for RLHF), DPO, and other alignment algorithms. Integrates with PEFT for parameter-efficient alignment and Accelerate for distributed training.',
+    context: 'Alignment library', scope: 'Training', license: 'Open source (Apache 2.0)',
+    url: 'https://github.com/huggingface/trl'
+  },
+  'Constitutional AI': {
+    desc: 'Anthropic\'s alignment approach where the model critiques and revises its own outputs based on a set of principles (a "constitution"). Reduces reliance on human feedback by using the model itself as a judge. The process: generate → critique against principles → revise → use revised outputs as training data. Scales alignment supervision beyond what human labelers can provide.',
+    context: 'Alignment', scope: 'Training', license: 'Concept (Anthropic research)',
+    url: 'https://arxiv.org/abs/2212.08073'
+  },
+  'RLAIF': {
+    desc: 'Reinforcement Learning from AI Feedback — replaces human preference labels with AI-generated preferences. A strong LLM judges which of two responses is better, and these AI preferences train the reward model. Dramatically reduces the cost and time of alignment data collection. Google\'s research shows RLAIF can match RLHF quality for many tasks.',
+    context: 'Alignment', scope: 'Training', license: 'Concept (Google research)',
+    url: 'https://arxiv.org/abs/2309.00267'
+  },
+  // Model Formats
+  'SafeTensors': {
+    desc: 'HuggingFace\'s safe and fast tensor serialization format. Unlike Python pickle (which can execute arbitrary code on load), SafeTensors is designed to be safe from code injection attacks. Also faster than pickle — supports zero-copy deserialization and memory-mapped loading. Now the default format on the HuggingFace Hub for model weights.',
+    context: 'Model serialization', scope: 'Training + Inference', license: 'Open source (Apache 2.0)',
+    url: 'https://github.com/huggingface/safetensors'
+  },
+  'GGUF': {
+    desc: 'GPT-Generated Unified Format — the model format used by llama.cpp and its ecosystem (Ollama, LM Studio). Stores quantized model weights (2-bit to 8-bit) along with metadata (architecture, tokenizer, hyperparameters) in a single file. Designed for efficient CPU and mixed CPU/GPU inference on consumer hardware. Successor to the older GGML format.',
+    context: 'Quantized model format', scope: 'Inference', license: 'Open source (MIT)',
+    url: 'https://github.com/ggerganov/ggml/blob/master/docs/gguf.md'
+  },
+  'ONNX Format': {
+    desc: 'Open Neural Network Exchange — a framework-agnostic model representation format. Models trained in PyTorch or TensorFlow can be exported to ONNX and run on any ONNX-compatible runtime (ONNX Runtime, TensorRT, OpenVINO). Defines a standard set of operators and a graph-based IR. Useful for cross-platform deployment but less common for large LLMs.',
+    context: 'Interoperability', scope: 'Inference', license: 'Open source (Apache 2.0)',
+    url: 'https://onnx.ai/'
+  },
+  'Pickle / .bin': {
+    desc: 'Python\'s native serialization format, historically the default for PyTorch model checkpoints (torch.save). Stores the full Python object graph including tensors. Security risk: pickle can execute arbitrary code during deserialization, making untrusted model files dangerous. Being replaced by SafeTensors for model distribution, but still used for training checkpoints.',
+    context: 'Legacy serialization', scope: 'Training + Inference', license: 'Part of Python standard library',
+    url: 'https://docs.python.org/3/library/pickle.html'
+  },
+  'Checkpointing': {
+    desc: 'The practice of periodically saving model state (weights, optimizer states, learning rate scheduler, RNG states) during training for fault tolerance. Distributed checkpointing (FSDP, DeepSpeed) saves sharded state across GPUs and can reshard when resuming on a different GPU count. Async checkpointing avoids blocking training. Critical for multi-day training runs on large clusters.',
+    context: 'Fault tolerance', scope: 'Training', license: 'Concept (implemented in PyTorch, DeepSpeed, etc.)',
+    url: 'https://pytorch.org/docs/stable/checkpoint.html'
+  },
+};
+
+// Build reverse deps
+const revDeps = {};
+for (const [comp, depList] of Object.entries(deps)) {
+  for (const d of depList) {
+    if (!revDeps[d]) revDeps[d] = [];
+    revDeps[d].push(comp);
+  }
+}
+
+// Build legend
+const legendEl = document.getElementById('legend');
+layers.forEach(l => {
+  const name = l.name.replace('\n',' ');
+  legendEl.innerHTML += `<div class="legend-item"><div class="legend-dot" style="background:${l.color}"></div>${name}</div>`;
+});
+
+// Build stack
+const stackEl = document.getElementById('stack');
+const allCompEls = {};
+
+layers.forEach(layer => {
+  const row = document.createElement('div');
+  row.className = 'layer';
+
+  const label = document.createElement('div');
+  label.className = 'layer-label';
+  label.style.background = layer.color;
+  label.textContent = layer.name.replace('\n',' ');
+  row.appendChild(label);
+
+  const content = document.createElement('div');
+  content.className = 'layer-content';
+
+  layer.comps.forEach(c => {
+    const el = document.createElement('div');
+    el.className = 'comp';
+    el.textContent = c;
+    el.dataset.comp = c;
+    el.style.borderLeftColor = layer.color;
+    el.style.borderLeftWidth = '3px';
+    el.style.borderLeftStyle = 'solid';
+    el.addEventListener('click', () => selectComp(c));
+    content.appendChild(el);
+    allCompEls[c] = el;
+  });
+
+  row.appendChild(content);
+  stackEl.appendChild(row);
+});
+
+let selected = null;
+
+function selectComp(name) {
+  const panel = document.getElementById('depPanel');
+
+  if (selected === name) {
+    selected = null;
+    Object.values(allCompEls).forEach(el => { el.classList.remove('highlighted','dimmed'); });
+    panel.style.display = 'none';
+    return;
+  }
+
+  selected = name;
+  const myDeps = deps[name] || [];
+  const myRevDeps = revDeps[name] || [];
+  const related = new Set([name, ...myDeps, ...myRevDeps]);
+
+  Object.entries(allCompEls).forEach(([c, el]) => {
+    el.classList.remove('highlighted','dimmed');
+    if (c === name) el.classList.add('highlighted');
+    else if (related.has(c)) el.classList.add('highlighted');
+    else el.classList.add('dimmed');
+  });
+
+  let html = `<h3>${name}</h3>`;
+
+  if (myDeps.length > 0) {
+    html += `<div class="dep-section"><div class="dep-label">⬇ Depends on (${myDeps.length})</div><div class="dep-list">${myDeps.map(d => `<span class="tag">${d}</span>`).join(' ')}</div></div>`;
+  } else {
+    html += `<div class="dep-section"><div class="dep-label">⬇ Depends on</div><div class="dep-list" style="color:var(--color-text-muted)">None — foundational component</div></div>`;
+  }
+
+  if (myRevDeps.length > 0) {
+    html += `<div class="dep-section"><div class="dep-label">⬆ Used by (${myRevDeps.length})</div><div class="dep-list">${myRevDeps.map(d => `<span class="tag">${d}</span>`).join(' ')}</div></div>`;
+  } else {
+    html += `<div class="dep-section"><div class="dep-label">⬆ Used by</div><div class="dep-list" style="color:var(--color-text-muted)">Top-level — no higher-level dependents tracked</div></div>`;
+  }
+
+  // Detailed explanation
+  const info = explanations[name];
+  if (info) {
+    html += `<div class="explanation">`;
+    html += `<h4>About ${name}</h4>`;
+    html += `<p>${info.desc}</p>`;
+    html += `<div class="detail-row">`;
+    if (info.context) html += `<div class="detail-item"><strong>Context:</strong> ${info.context}</div>`;
+    if (info.scope) html += `<div class="detail-item"><strong>Scope:</strong> ${info.scope}</div>`;
+    if (info.license) html += `<div class="detail-item"><strong>License:</strong> ${info.license}</div>`;
+    if (info.url) html += `<div class="detail-item"><strong>Website:</strong> <a href="${info.url}" target="_blank" rel="noopener">${info.url}</a></div>`;
+    html += `</div></div>`;
+  }
+
+  panel.innerHTML = html;
+  panel.style.display = 'block';
+}
+</script>
+</body>
+</html>

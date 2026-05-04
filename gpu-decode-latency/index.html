@@ -25,20 +25,35 @@
       time. The bottleneck isn't compute &mdash; it's <strong>HBM bandwidth</strong>.
     </p>
     <div class="callout">
-      <strong>Core insight:</strong> During training, many Warps coexist on an SM, so while some wait
-      for HBM data, others keep the Tensor Cores busy. During decode (batch=1), there are too few
-      Warps to hide the ~500-cycle HBM latency, so Tensor Cores are idle &gt;99% of the time.
+      <strong>Two related effects are at play:</strong>
+      <ol style="margin:8px 0 0 20px; padding:0">
+        <li><strong>HBM bandwidth limit (hard ceiling).</strong> At batch=1, each decoded token must re-read all ~134 MB of weights through a single 3.35 TB/s HBM pipe. That sets a floor of ~40 µs per layer regardless of how many warps you launch — more warps can't invent bandwidth that isn't there.</li>
+        <li><strong>Latency hiding (small batches).</strong> Once a little parallel work exists (a few warps or a few in-flight requests), warps can overlap: while one waits for HBM, another issues MMA on a Tensor Core. This only helps up to the bandwidth ceiling above.</li>
+      </ol>
     </div>
+    <p>
+      So the question "can't more warps fill the compute?" has a nuanced answer: <em>yes, up
+      to a point</em>. Warps on the same SM don't fight for the single Tensor Core (an H100 SM
+      actually has four, one per sub-partition), but they <em>do</em> share the SM's memory
+      pipes and the chip's HBM bandwidth. Past the bandwidth ceiling, adding warps just makes
+      them queue for HBM.
+    </p>
   </section>
 
   <!-- ==================== SIMULATION ==================== -->
   <section class="card">
     <h2>1. Interactive Warp Timeline</h2>
     <p>
-      Each row is a <strong>Warp</strong> running on a single SM. Every cycle, the Warp Scheduler picks
-      one ready Warp to issue a Tensor Core MMA. Drag the batch size slider to see how the number of
-      in-flight Warps determines whether latency can be hidden.
+      Each row is a <strong>warp</strong> resident on a single SM. The SM has 4 Tensor Cores
+      (one per sub-partition) that can issue MMAs in parallel, and a shared memory subsystem
+      that can hold only a limited number of HBM loads in flight at once. Drag the batch
+      slider to see the regime change:
     </p>
+    <ul style="margin:-4px 0 12px 20px; color:var(--text-dim); font-size:0.95rem">
+      <li><strong>Batch ≈ 1-4:</strong> too few warps to keep the TCs busy &mdash; latency isn't hidden.</li>
+      <li><strong>Batch ≈ 8-64:</strong> warps overlap well; TC utilization climbs sharply.</li>
+      <li><strong>Batch ≈ 128+:</strong> more warps than the memory subsystem can feed; extra warps <em>queue</em> for HBM (dark red) instead of computing. The compute ceiling, not warp count, is the limit now.</li>
+    </ul>
 
     <div class="controls">
       <div class="control">
@@ -93,16 +108,49 @@
     </div>
 
     <div class="legend">
-      <div class="legend-item"><div class="legend-swatch" style="background:var(--green)"></div>Computing (MMA)</div>
-      <div class="legend-item"><div class="legend-swatch" style="background:var(--red)"></div>Stalled on HBM</div>
-      <div class="legend-item"><div class="legend-swatch" style="background:var(--blue)"></div>L1 / Shared mem</div>
-      <div class="legend-item"><div class="legend-swatch" style="background:#222a3a"></div>No Warp scheduled</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:var(--green)"></div>Computing (MMA on a TC)</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:var(--red)"></div>Loading from HBM (in flight)</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#7a1f1f"></div>Queued for HBM (bandwidth-limited)</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:var(--yellow)"></div>Ready, waiting for a free TC</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#222a3a"></div>No warp scheduled</div>
     </div>
+    <p style="margin-top:12px; color:var(--text-dim); font-size:0.9rem">
+      The bottom row shows Tensor Core utilization across the SM's <strong>4 sub-partitions</strong>
+      (darker green = fewer TCs busy, bright green = all 4 issuing MMA).
+    </p>
   </section>
 
   <!-- ==================== COMPARISON ==================== -->
   <section class="card">
-    <h2>2. Training vs Decode (H=8192)</h2>
+    <h2>2. Why More Warps Can't Save Decode</h2>
+    <p>
+      A natural reaction is: "if one warp stalls, can't 48 warps just take turns and keep the
+      Tensor Cores full?" In <em>training</em> (large batches) that's exactly what happens.
+      In <em>decode</em> (batch=1), it doesn't &mdash; and not because of scheduling, but because
+      of physics:
+    </p>
+    <ul>
+      <li><strong>Weight bytes are fixed.</strong> To produce one token, the SM collectively
+        must read the entire weight matrix from HBM. That's a fixed number of bytes, and HBM
+        moves bytes at a fixed rate. More warps sharing the read doesn't reduce the total.</li>
+      <li><strong>Warps compete for the same memory pipes.</strong> An SM has a small number
+        of outstanding-load slots (MSHRs). Warps beyond that limit sit in a queue (shown in
+        dark red) until a slot frees up. Adding warps past this point doesn't add bandwidth.</li>
+      <li><strong>There's almost no reuse to amortize.</strong> Each weight is used in a single
+        multiply-accumulate before being discarded. Arithmetic intensity is roughly the batch
+        size. At batch=1, you do 1 FLOP per byte read &mdash; miles below the H100's ridge point
+        of ~591 FLOP/byte.</li>
+    </ul>
+    <p>
+      So yes, warps do fill in for each other — but only up to what the memory subsystem can
+      deliver. At batch=1 that ceiling is roughly HBM_bandwidth × cycle_time per SM, which is
+      tiny relative to Tensor Core throughput.
+    </p>
+  </section>
+
+  <!-- ==================== COMPARISON ==================== -->
+  <section class="card">
+    <h2>3. Training vs Decode (H=8192)</h2>
     <p>
       The same GEMM operation, once with a large batch and once with batch size 1. The only thing that
       changes is arithmetic intensity &mdash; and that's everything.
@@ -152,7 +200,7 @@
 
   <!-- ==================== ROOFLINE ==================== -->
   <section class="card">
-    <h2>3. Roofline Model (H100)</h2>
+    <h2>4. Roofline Model (H100)</h2>
     <p>
       The <strong>Roofline</strong> plots attainable performance against arithmetic intensity. Below the
       ridge point, you're memory-bound; above it, you're compute-bound. Decode lives deep in the
@@ -165,7 +213,7 @@
 
   <!-- ==================== MEMORY HIERARCHY ==================== -->
   <section class="card">
-    <h2>4. Memory Hierarchy</h2>
+    <h2>5. Memory Hierarchy</h2>
     <p>
       Every HBM fetch is a long round-trip. The yellow dot below represents a load request traveling
       down the hierarchy &mdash; and back up with the data.
@@ -207,7 +255,7 @@
 
   <!-- ==================== SOLUTIONS ==================== -->
   <section class="card">
-    <h2>5. Mitigations</h2>
+    <h2>6. Mitigations</h2>
     <p>Several strategies exist, all of which either raise arithmetic intensity or reduce HBM pressure.</p>
     <div class="solutions-grid">
       <div class="solution-card">

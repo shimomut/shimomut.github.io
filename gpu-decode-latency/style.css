@@ -239,8 +239,15 @@ button.primary:hover { background: #79b8ff; }
 
 .cell-compute { background: var(--green); }
 .cell-stall   { background: var(--red); }
+.cell-queue   { background: #7a1f1f; }   /* darker red: queued for HBM (bandwidth-limited) */
+.cell-ready   { background: var(--yellow); } /* has data, waiting for a free TC */
 .cell-l1      { background: var(--blue); }
 .cell-idle    { background: #222a3a; }
+
+/* Tensor Core utilization bar: shows how many of the 4 TCs are busy */
+.cell-tc-1 { background: #1d4a2b; }
+.cell-tc-2 { background: #2a6b3d; }
+.cell-tc-3 { background: #358f4d; }
 
 .tc-row {
   display: flex;

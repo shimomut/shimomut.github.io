@@ -10,9 +10,21 @@
 
   // ================================================================
   // Simulation state
+  //
+  // Model of a single SM (simplified but closer to reality than "one TC"):
+  //   - NUM_TC parallel Tensor Cores (H100 SM has 4 sub-partitions,
+  //     each with its own warp scheduler + TC). Multiple warps CAN
+  //     issue MMA simultaneously.
+  //   - Shared memory subsystem with bounded in-flight LD requests
+  //     (MAX_INFLIGHT_LD). If too many warps try to load at once, the
+  //     extra ones queue — this is the "HBM bandwidth" bottleneck.
+  //     For batch=1, even with 48 warps, you can't read weights faster
+  //     than the HBM interface allows.
   // ================================================================
-  const MAX_WARPS = 48;      // max resident warps per SM (simplified)
-  const TIMELINE_CELLS = 160; // # of cells rendered horizontally
+  const MAX_WARPS       = 48;   // max resident warps per SM
+  const NUM_TC          = 4;    // Tensor Cores per SM (sub-partitions)
+  const MAX_INFLIGHT_LD = 8;    // concurrent HBM loads the SM's MIO can handle
+  const TIMELINE_CELLS  = 160;  // # of cells rendered horizontally
 
   const state = {
     batch: 1,
@@ -23,11 +35,12 @@
     running: true,
     numWarps: 1,
     warps: [],
+    inflightLoads: 0,      // warps currently waiting on HBM (limited by MSHR)
     // ring buffers: for each warp lane, an array of cell states
     laneHistory: [],       // [warpIdx] -> array of state chars
-    tcHistory: [],         // global Tensor Core row
+    tcHistory: [],         // global Tensor Core utilization (fraction of NUM_TC used)
     totalCycles: 0,
-    busyCycles: 0,
+    busyTCUnits: 0,        // sum over cycles of (# TCs busy) — used for utilization
   };
 
   // DOM
@@ -80,11 +93,10 @@
   }
 
   function newWarp(id) {
-    // Start each warp at a slightly staggered point so they don't all
-    // stall simultaneously.
+    // Stagger initial phase so warps don't all hit HBM simultaneously.
     return {
       id,
-      state: 'loading',   // 'loading' | 'computing' | 'ready'
+      state: 'queued',   // 'queued' (wants HBM) | 'loading' (has MSHR) | 'ready' | 'computing'
       cyclesRemaining: Math.floor(Math.random() * state.hbmLatency),
     };
   }
@@ -92,59 +104,98 @@
   function rebuildWarps() {
     state.numWarps = computeNumWarps(state.batch);
     state.warps = [];
-    for (let i = 0; i < state.numWarps; i++) state.warps.push(newWarp(i));
+    // Pre-seed: as many warps as can fit in MSHR start in 'loading',
+    // the rest wait in 'queued' for HBM bandwidth.
+    for (let i = 0; i < state.numWarps; i++) {
+      const w = newWarp(i);
+      if (i < MAX_INFLIGHT_LD) {
+        w.state = 'loading';
+      } else {
+        w.state = 'queued';
+        w.cyclesRemaining = 0;
+      }
+      state.warps.push(w);
+    }
+    state.inflightLoads = Math.min(state.numWarps, MAX_INFLIGHT_LD);
     state.laneHistory = [];
     for (let i = 0; i < MAX_WARPS; i++) state.laneHistory.push(new Array(TIMELINE_CELLS).fill('idle'));
-    state.tcHistory = new Array(TIMELINE_CELLS).fill('idle');
+    state.tcHistory = new Array(TIMELINE_CELLS).fill(0);
     state.totalCycles = 0;
-    state.busyCycles = 0;
+    state.busyTCUnits = 0;
     renderLaneLabels();
   }
 
   // ================================================================
   // Per-cycle simulation step
+  //
+  // Each cycle:
+  //   1. Advance loading warps (decrement latency); when done -> 'ready'.
+  //   2. Advance computing warps (decrement compute timer); when done,
+  //      try to re-enter HBM: if MSHR has space -> 'loading', else 'queued'.
+  //   3. Promote queued warps to 'loading' if MSHR has slots free.
+  //   4. Schedule up to NUM_TC ready warps onto the Tensor Cores.
   // ================================================================
   function stepOneCycle() {
-    // Advance each warp's internal state.
-    // Warps in 'loading' decrement cyclesRemaining; when it reaches 0 they
-    // become 'ready'. Warps in 'computing' decrement their compute timer.
-    const readyWarps = [];
+    // 1. Advance loading warps
     for (const w of state.warps) {
       if (w.state === 'loading') {
         w.cyclesRemaining--;
         if (w.cyclesRemaining <= 0) {
           w.state = 'ready';
+          state.inflightLoads--;
         }
-      } else if (w.state === 'computing') {
-        // handled after scheduling; still computing this cycle
       }
-      if (w.state === 'ready') readyWarps.push(w);
     }
 
-    // Is any warp currently computing? (carries over from prior cycle)
-    let computingWarp = state.warps.find(w => w.state === 'computing');
-
-    if (!computingWarp && readyWarps.length > 0) {
-      // Warp Scheduler: pick the first ready warp to issue MMA
-      computingWarp = readyWarps[0];
-      computingWarp.state = 'computing';
-      computingWarp.cyclesRemaining = state.computeCycles;
+    // 2. Advance computing warps
+    for (const w of state.warps) {
+      if (w.state === 'computing') {
+        w.cyclesRemaining--;
+        if (w.cyclesRemaining <= 0) {
+          // Finished one MMA tile; go fetch the next tile.
+          if (state.inflightLoads < MAX_INFLIGHT_LD) {
+            w.state = 'loading';
+            w.cyclesRemaining = state.hbmLatency;
+            state.inflightLoads++;
+          } else {
+            w.state = 'queued';
+            w.cyclesRemaining = 0;
+          }
+        }
+      }
     }
 
-    // Record lane state for this cycle BEFORE consuming the cycle.
+    // 3. Promote queued warps to loading if MSHR has room
+    for (const w of state.warps) {
+      if (w.state === 'queued' && state.inflightLoads < MAX_INFLIGHT_LD) {
+        w.state = 'loading';
+        w.cyclesRemaining = state.hbmLatency;
+        state.inflightLoads++;
+      }
+    }
+
+    // 4. Schedule ready warps onto NUM_TC Tensor Cores.
+    //    A warp already 'computing' from a previous cycle keeps its TC.
+    //    Fill any remaining TCs with warps in 'ready'.
+    let tcBusy = state.warps.filter(w => w.state === 'computing').length;
+    for (const w of state.warps) {
+      if (tcBusy >= NUM_TC) break;
+      if (w.state === 'ready') {
+        w.state = 'computing';
+        w.cyclesRemaining = state.computeCycles;
+        tcBusy++;
+      }
+    }
+    const tcUsed = Math.min(NUM_TC, tcBusy);
+
+    // Record lane state for this cycle
     const frameStates = new Array(MAX_WARPS).fill('idle');
     for (const w of state.warps) {
-      if (w.state === 'computing' && w === computingWarp) {
-        frameStates[w.id] = 'compute';
-      } else if (w.state === 'computing') {
-        // A warp flagged computing but not the one issuing this cycle
-        // should never happen with single TC, but be safe:
-        frameStates[w.id] = 'compute';
-      } else if (w.state === 'loading') {
-        frameStates[w.id] = 'stall';
-      } else if (w.state === 'ready') {
-        // Ready but waiting for scheduler (TC busy) — treat as stall
-        frameStates[w.id] = 'stall';
+      switch (w.state) {
+        case 'computing': frameStates[w.id] = 'compute'; break;
+        case 'loading':   frameStates[w.id] = 'stall';   break;
+        case 'queued':    frameStates[w.id] = 'queue';   break;
+        case 'ready':     frameStates[w.id] = 'ready';   break;
       }
     }
 
@@ -153,20 +204,10 @@
       state.laneHistory[i].push(frameStates[i]);
       if (state.laneHistory[i].length > TIMELINE_CELLS) state.laneHistory[i].shift();
     }
-    state.tcHistory.push(computingWarp ? 'compute' : 'idle');
+    state.tcHistory.push(tcUsed);
     if (state.tcHistory.length > TIMELINE_CELLS) state.tcHistory.shift();
 
-    // Advance the computing warp: consume one compute cycle
-    if (computingWarp) {
-      computingWarp.cyclesRemaining--;
-      state.busyCycles++;
-      if (computingWarp.cyclesRemaining <= 0) {
-        // Finished: go back to loading
-        computingWarp.state = 'loading';
-        computingWarp.cyclesRemaining = state.hbmLatency;
-      }
-    }
-
+    state.busyTCUnits += tcUsed;
     state.cycle++;
     state.totalCycles++;
   }
@@ -214,10 +255,21 @@
   function stateToClass(s) {
     switch (s) {
       case 'compute': return 'cell cell-compute';
-      case 'stall':   return 'cell cell-stall';
+      case 'stall':   return 'cell cell-stall';     // waiting for HBM (has MSHR slot)
+      case 'queue':   return 'cell cell-queue';     // queued for HBM (no MSHR slot — bandwidth limited)
+      case 'ready':   return 'cell cell-ready';     // got data, waiting for a free TC
       case 'l1':      return 'cell cell-l1';
       default:        return 'cell cell-idle';
     }
+  }
+
+  function tcCountToClass(n) {
+    // n = # of Tensor Cores busy this cycle (0..NUM_TC)
+    if (n >= NUM_TC) return 'cell cell-compute';
+    if (n >= NUM_TC * 0.75) return 'cell cell-tc-3';
+    if (n >= NUM_TC * 0.5)  return 'cell cell-tc-2';
+    if (n >= 1)             return 'cell cell-tc-1';
+    return 'cell cell-idle';
   }
 
   function renderTimeline() {
@@ -238,19 +290,22 @@
     const tcCells = els.tcRow.children;
     const off = state.tcHistory.length - tcCells.length;
     for (let j = 0; j < tcCells.length; j++) {
-      const s = state.tcHistory[off + j];
-      const cls = stateToClass(s);
+      const n = state.tcHistory[off + j];
+      const cls = tcCountToClass(n);
       if (tcCells[j].className !== cls) tcCells[j].className = cls;
     }
   }
 
   function renderMetrics() {
-    const util = state.totalCycles > 0 ? (state.busyCycles / state.totalCycles) * 100 : 0;
+    // Utilization = fraction of TC-cycles actually used, out of (NUM_TC * totalCycles)
+    const util = state.totalCycles > 0
+      ? (state.busyTCUnits / (NUM_TC * state.totalCycles)) * 100
+      : 0;
     els.mUtil.textContent = util.toFixed(1) + '%';
     els.utilFill.style.width = Math.min(100, util) + '%';
     els.mWarps.textContent = state.numWarps;
     els.mCycles.textContent = state.cycle.toLocaleString();
-    els.mCompute.textContent = state.busyCycles.toLocaleString();
+    els.mCompute.textContent = state.busyTCUnits.toLocaleString();
   }
 
   // ================================================================

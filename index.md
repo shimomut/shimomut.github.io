@@ -4,3 +4,4 @@
 - [Parallelism Techniques for Large-Scale AI Model Training](https://shimomut.github.io/parallelism-techniques-for-ai-training/)
 - [Profiling Tools for AI Applications](profiling-tools-for-ai/)
 - [The Attention Mechanism — Core of the Transformer Architecture](attention-mechanism/)
+- [Why GPU Tensor Cores Sit Idle During LLM Decode](gpu-decode-latency/)

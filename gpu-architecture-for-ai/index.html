@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GPU Architecture for AI Workloads</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="container">
+
+  <a class="nav-back" href="../">← Back to articles</a>
+
+  <header class="page-header">
+    <h1>GPU Architecture for AI Workloads</h1>
+    <p class="subtitle">From threads and warps to SMs, Tensor Cores, and the CUDA library stack</p>
+  </header>
+
+  <nav id="toc" class="card">
+    <h2 class="toc-title">Contents</h2>
+    <ol>
+      <li><a href="#why-gpus">Why GPUs for AI</a></li>
+      <li><a href="#hierarchy">The Execution Hierarchy &mdash; Thread, Warp, Block, Grid</a></li>
+      <li><a href="#sm">The Streaming Multiprocessor (SM)</a></li>
+      <li><a href="#simt">Warps and SIMT Execution</a></li>
+      <li><a href="#memory">Memory Hierarchy at a Glance</a></li>
+      <li><a href="#tensor-cores">Tensor Cores</a></li>
+      <li><a href="#cuda">CUDA Programming Model &amp; Libraries</a></li>
+      <li><a href="#dispatch">Putting It Together &mdash; How a Kernel Runs</a></li>
+    </ol>
+  </nav>
+
+  <!-- ==================== WHY GPUs ==================== -->
+  <section id="why-gpus" class="card">
+    <h2>1. Why GPUs for AI</h2>
+    <p>
+      Modern AI is almost entirely dense linear algebra &mdash; huge matrix multiplies, element-wise
+      operations, and reductions applied to tensors with millions of elements. These operations are
+      <strong>embarrassingly parallel</strong>: each output element depends on an independent
+      dot product. CPUs devote most of their silicon to control logic and caches for a small number
+      of complex threads. GPUs flip the ratio: tens of thousands of simple arithmetic lanes, minimal
+      per-thread control state, and a huge memory bandwidth pipe to feed them.
+    </p>
+    <p>
+      The numbers tell the story. A high-end server CPU delivers roughly <strong>1-3 TFLOPS</strong>
+      of FP32 compute. An H100 GPU delivers ~2,000 TFLOPS of BF16 Tensor Core compute &mdash; three
+      orders of magnitude more &mdash; by organizing its silicon as 132 <em>Streaming Multiprocessors</em>
+      that each run thousands of threads in parallel.
+    </p>
+  </section>
+
+  <!-- ==================== HIERARCHY ==================== -->
+  <section id="hierarchy" class="card">
+    <h2>2. The Execution Hierarchy</h2>
+    <p>
+      CUDA exposes four nested levels of parallelism. Understanding this hierarchy is the key to
+      everything else.
+    </p>
+    <ul class="def-list">
+      <li><strong>Thread</strong> &mdash; the smallest unit. Each thread executes the same function
+        (called a <em>kernel</em>) but on different data, identified by its index.</li>
+      <li><strong>Warp</strong> &mdash; a group of <strong>32 threads</strong> that execute
+        <em>in lockstep</em>. This is the hardware's actual scheduling unit: the SM issues one
+        instruction to all 32 lanes per cycle.</li>
+      <li><strong>Block</strong> (also <em>thread block</em> or <em>CTA</em>) &mdash; a group
+        of warps (typically 128-1024 threads) that run together on one SM. Threads in a block
+        can share memory and synchronize with each other.</li>
+      <li><strong>Grid</strong> &mdash; the set of all blocks launched by a single kernel call.
+        Blocks within a grid are independent and can be scheduled on any SM in any order.</li>
+    </ul>
+
+    <div class="interactive-wrap">
+      <h3>Hierarchy Explorer</h3>
+      <p class="hint">Click a level to zoom in. The canvas shows how a grid decomposes into blocks,
+      warps, and individual threads.</p>
+      <div class="hierarchy-controls">
+        <button data-level="grid" class="primary">Grid</button>
+        <button data-level="block">Block</button>
+        <button data-level="warp">Warp</button>
+        <button data-level="thread">Thread</button>
+      </div>
+      <canvas id="hierarchyCanvas" width="900" height="360"></canvas>
+      <div class="hierarchy-info" id="hierarchyInfo"></div>
+    </div>
+  </section>
+
+  <!-- ==================== SM ==================== -->
+  <section id="sm" class="card">
+    <h2>3. The Streaming Multiprocessor (SM)</h2>
+    <p>
+      The SM is the GPU's fundamental unit of execution &mdash; the equivalent of a CPU core, but
+      vastly wider. An H100 has <strong>132 SMs</strong>. Each SM packs:
+    </p>
+    <ul>
+      <li><strong>4 sub-partitions</strong>, each with its own warp scheduler, register file, and
+        set of execution units.</li>
+      <li><strong>128 CUDA Cores</strong> for scalar FP32/INT32 math (32 per sub-partition).</li>
+      <li><strong>4 Tensor Cores</strong> for matrix-multiply-accumulate (one per sub-partition).</li>
+      <li><strong>256 KB register file</strong> and <strong>228 KB unified shared memory / L1</strong>.</li>
+      <li>A warp scheduler per sub-partition that picks one <em>ready</em> warp per cycle to issue
+        an instruction.</li>
+    </ul>
+
+    <div class="sm-diagram" aria-label="Simplified Streaming Multiprocessor diagram">
+      <div class="sp sp0"></div>
+      <div class="sp sp1"></div>
+      <div class="sp sp2"></div>
+      <div class="sp sp3"></div>
+      <div class="smem"></div>
+    </div>
+
+    <h3>SM Occupancy Calculator</h3>
+    <p class="hint">Occupancy is the ratio of resident warps to the hardware maximum (64 on H100).
+    Higher occupancy usually helps hide latency &mdash; but registers, shared memory, and block size
+    all set hard limits. Drag the sliders to see what caps you first.</p>
+    <div class="controls">
+      <div class="control">
+        <label>Threads per block <span class="val" id="valTpb">256</span></label>
+        <input type="range" id="tpb" min="32" max="1024" step="32" value="256">
+      </div>
+      <div class="control">
+        <label>Registers per thread <span class="val" id="valRpt">32</span></label>
+        <input type="range" id="rpt" min="16" max="255" value="32">
+      </div>
+      <div class="control">
+        <label>Shared memory per block (KB) <span class="val" id="valSmem">16</span></label>
+        <input type="range" id="smem" min="0" max="100" value="16">
+      </div>
+    </div>
+
+    <div class="metrics">
+      <div class="metric">
+        <div class="label">Blocks per SM</div>
+        <div class="value" id="mBlocks">8</div>
+      </div>
+      <div class="metric">
+        <div class="label">Resident warps</div>
+        <div class="value" id="mResWarps">64</div>
+      </div>
+      <div class="metric">
+        <div class="label">Occupancy</div>
+        <div class="value" id="mOcc">100%</div>
+        <div class="util-wrapper"><div class="util-bar"><div class="util-fill" id="occFill"></div></div></div>
+      </div>
+      <div class="metric">
+        <div class="label">Limiting factor</div>
+        <div class="value" id="mLimit" style="font-size:1.05rem">&mdash;</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== SIMT ==================== -->
+  <section id="simt" class="card">
+    <h2>4. Warps and SIMT Execution</h2>
+    <p>
+      NVIDIA calls its execution model <strong>SIMT</strong> &mdash; Single Instruction, Multiple
+      Threads. All 32 threads in a warp share a program counter. On each cycle, the warp scheduler
+      picks a <em>ready</em> warp and broadcasts one instruction to all 32 lanes. Each lane operates
+      on its own data, but every lane runs the same instruction at the same time.
+    </p>
+    <p>
+      This is efficient when all threads follow the same control flow. When an <code>if</code>
+      makes threads disagree &mdash; called <strong>warp divergence</strong> &mdash; the warp executes
+      <em>both</em> branches serially, masking off the threads not taking each path. Divergence can
+      halve (or worse) the effective throughput of a warp.
+    </p>
+
+    <div class="interactive-wrap">
+      <h3>SIMT Lockstep Simulator</h3>
+      <p class="hint">Watch 32 threads of one warp march through a program. Toggle the branch to see
+      divergence: half the threads go one way, half the other, and the warp executes both halves
+      back-to-back while idle lanes are masked out.</p>
+
+      <div class="simt-controls">
+        <label class="switch">
+          <input type="checkbox" id="branchOn">
+          <span>Add divergent branch (threads with <code>tid &lt; 16</code> take path A, rest take B)</span>
+        </label>
+        <div class="btn-row">
+          <button class="primary" id="simtPlay">Pause</button>
+          <button id="simtReset">Reset</button>
+        </div>
+      </div>
+
+      <div class="simt-wrap">
+        <div class="simt-code" id="simtCode"></div>
+        <div class="simt-lanes-wrap">
+          <div class="simt-lanes" id="simtLanes"></div>
+          <div class="simt-labels">
+            <span>T0</span><span>T7</span><span>T15</span><span>T23</span><span>T31</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="metrics">
+        <div class="metric">
+          <div class="label">Instructions issued</div>
+          <div class="value" id="simtIssued">0</div>
+        </div>
+        <div class="metric">
+          <div class="label">Lane-cycles used</div>
+          <div class="value" id="simtUsed">0</div>
+        </div>
+        <div class="metric">
+          <div class="label">Lane-cycles wasted (masked)</div>
+          <div class="value" id="simtWasted">0</div>
+        </div>
+        <div class="metric">
+          <div class="label">SIMT efficiency</div>
+          <div class="value" id="simtEff">100%</div>
+        </div>
+      </div>
+
+      <div class="legend">
+        <div class="legend-item"><div class="legend-swatch" style="background:var(--green)"></div>Active (issued this cycle)</div>
+        <div class="legend-item"><div class="legend-swatch" style="background:var(--red)"></div>Masked off (divergent)</div>
+        <div class="legend-item"><div class="legend-swatch" style="background:#222a3a"></div>Not yet executed / done</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== MEMORY ==================== -->
+  <section id="memory" class="card">
+    <h2>5. Memory Hierarchy at a Glance</h2>
+    <p>
+      A GPU's memory system is a pyramid: small and fast at the top, huge and slow at the bottom.
+      AI kernels spend most of their effort arranging data to maximize reuse of the fast tiers.
+    </p>
+    <table class="mem-table">
+      <thead>
+        <tr><th>Tier</th><th>Size (per SM / chip)</th><th>Latency</th><th>Bandwidth</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Registers</td><td>256 KB / SM</td><td>~1 cycle</td><td>very high (local)</td></tr>
+        <tr><td>Shared memory / L1</td><td>228 KB / SM</td><td>~30 cycles</td><td>~20 TB/s aggregate</td></tr>
+        <tr><td>L2 cache</td><td>50 MB / chip</td><td>~200 cycles</td><td>~5 TB/s</td></tr>
+        <tr><td>HBM (global)</td><td>80 GB / chip</td><td>~400-800 cycles</td><td>3,350 GB/s</td></tr>
+      </tbody>
+    </table>
+    <p class="hint">
+      For a deeper dive into how this hierarchy shapes LLM performance, see
+      <a href="../gpu-decode-latency/">Why GPU Tensor Cores Sit Idle During LLM Decode</a>.
+    </p>
+  </section>
+
+  <!-- ==================== TENSOR CORES ==================== -->
+  <section id="tensor-cores" class="card">
+    <h2>6. Tensor Cores</h2>
+    <p>
+      CUDA Cores do one FP32 multiply-add per cycle per lane &mdash; fine for general code, slow for
+      AI. <strong>Tensor Cores</strong> are specialized units that perform an entire small
+      matrix-multiply-accumulate (MMA) in a single instruction: something like
+      <code>D = A · B + C</code> where A, B, C, D are 16×16 tiles.
+    </p>
+    <p>
+      A single warp can issue one Tensor Core MMA that performs thousands of FMAs in a handful of
+      cycles. This is why an H100 achieves ~2 PFLOPS of BF16 compute while having "only" 16,896
+      CUDA Cores: the Tensor Cores provide an additional 16× boost on top.
+    </p>
+    <div class="interactive-wrap">
+      <h3>MMA Animation</h3>
+      <p class="hint">A warp cooperatively loads two 16×16 tiles into shared memory, then issues
+      one Tensor Core MMA instruction that produces the 16×16 output tile. Watch the dot product
+      accumulate cell by cell.</p>
+      <canvas id="tcCanvas" width="760" height="280"></canvas>
+      <div class="btn-row">
+        <button class="primary" id="tcPlay">Play</button>
+        <button id="tcReset">Reset</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== CUDA ==================== -->
+  <section id="cuda" class="card">
+    <h2>7. CUDA Programming Model &amp; Libraries</h2>
+    <p>
+      <strong>CUDA</strong> is NVIDIA's C++-based programming model for GPUs. You write a
+      <em>kernel</em> &mdash; a function tagged <code>__global__</code> &mdash; and launch it with
+      a triple-angle-bracket syntax that specifies the grid and block dimensions:
+    </p>
+<pre><code>__global__ void add(const float* a, const float* b, float* c, int n) {
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;  // global thread index
+    if (tid &lt; n) c[tid] = a[tid] + b[tid];
+}
+
+int main() {
+    int n = 1&lt;&lt;20;
+    dim3 block(256);                      // 256 threads per block (8 warps)
+    dim3 grid((n + 255) / 256);           // enough blocks to cover n elements
+    add&lt;&lt;&lt;grid, block&gt;&gt;&gt;(a, b, c, n);     // kernel launch
+}</code></pre>
+    <p>
+      Writing kernels by hand is rare in production AI. The real power of CUDA is its
+      <strong>library stack</strong>. Most high-level code (PyTorch, JAX, TensorFlow) ultimately
+      calls into these libraries for the heavy lifting:
+    </p>
+    <div class="solutions-grid">
+      <div class="solution-card">
+        <h4>cuBLAS</h4>
+        <p>Dense linear algebra (GEMM, GEMV). The workhorse behind <code>torch.matmul</code>. Tuned per shape for each GPU generation.</p>
+      </div>
+      <div class="solution-card">
+        <h4>cuDNN</h4>
+        <p>Deep-learning primitives: convolution, pooling, batch-norm, RNN cells, attention. Handles the gnarly algorithm selection and kernel fusion.</p>
+      </div>
+      <div class="solution-card">
+        <h4>CUTLASS</h4>
+        <p>A C++ template library of GEMM building blocks. Used to write custom, shape-specialized kernels (e.g., Flash Attention, mixture-of-experts).</p>
+      </div>
+      <div class="solution-card">
+        <h4>NCCL</h4>
+        <p>Collective communication across GPUs: all-reduce, all-gather, broadcast. The substrate of multi-GPU and multi-node training.</p>
+      </div>
+      <div class="solution-card">
+        <h4>Thrust / CUB</h4>
+        <p>Parallel algorithm primitives: scan, sort, reduction. Building blocks for custom kernels.</p>
+      </div>
+      <div class="solution-card">
+        <h4>TensorRT</h4>
+        <p>Inference optimizer and runtime: fuses ops, picks kernels, quantizes, and builds a deployment-ready engine from a trained model.</p>
+      </div>
+      <div class="solution-card">
+        <h4>CUDA Graphs</h4>
+        <p>Capture a sequence of kernel launches once, replay it many times with near-zero CPU overhead. Critical for low-latency inference.</p>
+      </div>
+      <div class="solution-card">
+        <h4>Triton</h4>
+        <p>A Python DSL (developed at OpenAI) that compiles to PTX and rivals hand-written CUTLASS kernels for many AI workloads.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== DISPATCH ==================== -->
+  <section id="dispatch" class="card">
+    <h2>8. Putting It Together &mdash; How a Kernel Runs</h2>
+    <p>
+      When you launch a kernel with, say, <code>4096</code> blocks on a GPU with <code>132</code>
+      SMs, the hardware's <strong>Gigathread Engine</strong> dispatches blocks to SMs as space
+      becomes available. Each SM runs multiple blocks concurrently (limited by registers and shared
+      memory, as the occupancy calculator above showed). When a block finishes, the SM is immediately
+      given the next queued block.
+    </p>
+
+    <div class="interactive-wrap">
+      <h3>Kernel Dispatch Visualizer</h3>
+      <p class="hint">Launch a grid of blocks and watch the Gigathread Engine feed them to the
+      SM array. Adjust the grid size and the per-block work to see how schedulers keep SMs busy.</p>
+      <div class="controls">
+        <div class="control">
+          <label>Grid size (blocks) <span class="val" id="valGrid">256</span></label>
+          <input type="range" id="gridSize" min="16" max="2048" step="16" value="256">
+        </div>
+        <div class="control">
+          <label>Work per block (cycles) <span class="val" id="valWork">20</span></label>
+          <input type="range" id="workPerBlock" min="5" max="100" value="20">
+        </div>
+        <div class="control">
+          <label>Blocks per SM <span class="val" id="valBps">4</span></label>
+          <input type="range" id="bps" min="1" max="8" value="4">
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="primary" id="dispatchPlay">Pause</button>
+        <button id="dispatchReset">Reset</button>
+      </div>
+      <canvas id="dispatchCanvas" width="900" height="320"></canvas>
+      <div class="metrics">
+        <div class="metric">
+          <div class="label">Blocks queued</div>
+          <div class="value" id="dQueued">0</div>
+        </div>
+        <div class="metric">
+          <div class="label">Blocks running</div>
+          <div class="value" id="dRunning">0</div>
+        </div>
+        <div class="metric">
+          <div class="label">Blocks done</div>
+          <div class="value" id="dDone">0</div>
+        </div>
+        <div class="metric">
+          <div class="label">Time</div>
+          <div class="value" id="dTime">0</div>
+        </div>
+      </div>
+    </div>
+
+    <h3>Summary</h3>
+    <p>The whole pipeline for an AI operation:</p>
+    <ol>
+      <li>PyTorch (or JAX, TF) calls a cuBLAS / cuDNN / custom kernel.</li>
+      <li>The kernel is launched as a <strong>grid</strong> of <strong>blocks</strong>.</li>
+      <li>The Gigathread Engine dispatches blocks to the 132 <strong>SMs</strong>.</li>
+      <li>Each SM breaks its blocks into <strong>warps of 32 threads</strong>.</li>
+      <li>Warp schedulers pick ready warps each cycle and issue instructions on the
+        <strong>CUDA Cores</strong> (scalar math) or <strong>Tensor Cores</strong> (tile MMAs).</li>
+      <li>Data flows up the memory hierarchy from <strong>HBM → L2 → shared memory → registers</strong>,
+        and results flow back down.</li>
+    </ol>
+  </section>
+
+</div>
+<script src="script.js"></script>
+</body>
+</html>

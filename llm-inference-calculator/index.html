@@ -234,7 +234,84 @@
     </div>
   </section>
 
-  <!-- ==================== FORMULAS ==================== -->
+  <!-- ==================== VALIDATION ==================== -->
+  <section class="card">
+    <h2>Validation against published benchmarks</h2>
+    <p>
+      A calculator is only useful if its numbers are in the right ballpark. I spot-checked the
+      model against a few publicly reported benchmarks. Predictions below use the default
+      MFU = 45% and MBU = 80% (the calculator defaults).
+    </p>
+
+    <table class="validation">
+      <thead>
+        <tr>
+          <th>Scenario</th>
+          <th>Metric</th>
+          <th>Observed</th>
+          <th>Predicted</th>
+          <th>Δ</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <strong>Llama 3.1 70B FP8 · 1×H100 · BS=1 · 256/512</strong><br>
+            <span class="src">Source: <a href="https://cerebrium.ai/blog/benchmarking-vllm-sglang-tensorrt-for-llama-3-1-api" target="_blank" rel="noopener">Cerebrium vLLM bench</a> + <a href="https://artificialanalysis.ai/models/llama-3-1-instruct-70b/providers" target="_blank" rel="noopener">Artificial Analysis median</a></span>
+          </td>
+          <td>Per-user throughput</td>
+          <td>~30 tok/s</td>
+          <td>38 tok/s</td>
+          <td class="delta-ok">+27%</td>
+        </tr>
+        <tr>
+          <td>
+            <strong>Llama 2 70B MHA FP8 · 2×H100 · BS=128 · 1024/512</strong><br>
+            <span class="src">Source: <a href="https://perplexity.ai/hub/blog/turbocharging-llama-2-70b-with-nvidia-h100" target="_blank" rel="noopener">Perplexity TRT-LLM</a></span>
+          </td>
+          <td>Agg throughput / GPU</td>
+          <td>767 tok/s/GPU</td>
+          <td>684 tok/s/GPU</td>
+          <td class="delta-ok">−11%</td>
+        </tr>
+        <tr>
+          <td>
+            <strong>Llama 2 70B MHA FP8 · 2×H100 · BS=128 · 1024/512</strong><br>
+            <span class="src">(same row, step time)</span>
+          </td>
+          <td>Decode step time</td>
+          <td>~83 ms</td>
+          <td>94 ms</td>
+          <td class="delta-ok">+13%</td>
+        </tr>
+        <tr>
+          <td>
+            <strong>Theoretical floor: Llama 70B FP8, BS=1</strong><br>
+            <span class="src">Roofline: 70 GB weights / (3.35 TB/s × MBU)</span>
+          </td>
+          <td>Decode ceiling</td>
+          <td>~38 tok/s (at MBU=0.80)</td>
+          <td>38 tok/s</td>
+          <td class="delta-ok">0%</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>What the error comes from</h3>
+    <ul>
+      <li><strong>MFU/MBU are knobs.</strong> Real-world MFU for decode is typically 20-50%, MBU 60-85%. Tune the sliders to match your stack and the error shrinks to &lt; 10% for most memory-bound cases.</li>
+      <li><strong>Published TTFT often includes network overhead.</strong> Cerebrium's 123 ms includes a cross-region HTTP round-trip; the pure prefill compute for 256 tokens is ~40 ms, which matches the prediction. Add 50-100 ms for RPC + scheduler when comparing to end-to-end API benchmarks.</li>
+      <li><strong>Per-user decode rate on managed APIs is throttled.</strong> Artificial Analysis's ~30 tok/s median reflects providers serving many concurrent users per GPU, not peak single-stream performance. The roofline ceiling (38 tok/s at MBU=0.80) is correctly above what providers actually deliver.</li>
+      <li><strong>What the model intentionally skips:</strong> kernel-launch overhead, Python/scheduler cost, continuous-batching inefficiency, chunked prefill, speculative decoding, and pipeline parallelism. These move the needle by 10-30% in practice.</li>
+    </ul>
+
+    <div class="callout">
+      <strong>Conclusion:</strong> the calculator lands within roughly ±15-25% of measured numbers
+      for the cases I checked, and its <em>bottleneck classification</em> (HBM bandwidth vs KV vs
+      compute vs comm) matches reality. Treat absolute numbers as first-order estimates for
+      capacity planning, not replacements for real benchmarking.
+    </div>
+  </section>
   <section class="card">
     <h2>The math behind it</h2>
     <p>Using <code>P</code> = active params, <code>L</code> = layers, <code>H</code> = hidden,

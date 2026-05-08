@@ -460,6 +460,54 @@ code {
 ul { color: var(--text); }
 li { margin: 2px 0; }
 
+/* ================= Validation table ================= */
+table.validation {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+  font-size: 0.9rem;
+}
+
+table.validation th,
+table.validation td {
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+table.validation th {
+  color: var(--text-dim);
+  font-weight: 600;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: var(--surface-2);
+}
+
+table.validation .src {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-dim);
+  font-size: 0.78rem;
+}
+
+table.validation .src a {
+  color: var(--blue);
+  text-decoration: none;
+}
+
+table.validation .src a:hover { text-decoration: underline; }
+
+table.validation .delta-ok {
+  color: var(--green);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-weight: 600;
+}
+
+table.validation .delta-warn { color: var(--yellow); }
+table.validation .delta-bad  { color: var(--red); }
+
 @media (max-width: 640px) {
   header.page-header h1 { font-size: 1.6rem; }
   .metric .value { font-size: 1.2rem; }

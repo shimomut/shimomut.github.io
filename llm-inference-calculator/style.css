@@ -147,10 +147,32 @@ p { color: var(--text); }
 }
 
 .pane-config .btn-row {
-  margin-top: 8px;
+  margin-top: 4px;
   gap: 6px;
   display: grid;
   grid-template-columns: 1fr;
+}
+
+.pane-config .preset-heading {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.pane-config .preset-title {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.pane-config .preset-desc {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  line-height: 1.35;
+  margin-bottom: 6px;
 }
 
 .pane-config button {
@@ -162,6 +184,44 @@ p { color: var(--text); }
 /* The two dropdowns (model, GPU) are the most important — span full width */
 .pane-config .control.full {
   grid-column: 1 / -1;
+}
+
+/* Custom GPU panel */
+.custom-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 8px;
+  margin-top: 4px;
+}
+
+.custom-lbl {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  margin-bottom: 2px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.custom-lbl .val {
+  color: var(--yellow);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.custom-grid input[type="number"] {
+  width: 100%;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 3px 6px;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 0.8rem;
+  min-height: 26px;
+}
+
+.custom-grid input[type="number"]:focus {
+  outline: none;
+  border-color: var(--blue);
 }
 
 /* On narrow screens, collapse to a single column and drop sticky */

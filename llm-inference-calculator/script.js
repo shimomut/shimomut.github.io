@@ -45,7 +45,15 @@
     { id: 'l40s',       name: 'NVIDIA L40S (48 GB)',       fp16Tflops: 362,  fp8Tflops: 733,  int4Tflops: 1466, hbmGBs: 864,  hbmGB: 48  },
     { id: 'mi300x',     name: 'AMD Instinct MI300X (192 GB)', fp16Tflops: 1307, fp8Tflops: 2614, int4Tflops: 2614, hbmGBs: 5300, hbmGB: 192 },
     { id: 'trn2',       name: 'AWS Trainium2 (96 GB)',     fp16Tflops: 667,  fp8Tflops: 1300, int4Tflops: 2600, hbmGBs: 2900, hbmGB: 96  },
+    { id: 'custom',     name: 'Custom…',                   fp16Tflops: 990,  fp8Tflops: 1979, int4Tflops: 3958, hbmGBs: 3350, hbmGB: 80  },
   ];
+
+  // Live-editable spec used when the "Custom" GPU is selected.
+  const CUSTOM_GPU = {
+    id: 'custom', name: 'Custom…',
+    fp16Tflops: 990, fp8Tflops: 1979, int4Tflops: 3958,
+    hbmGBs: 3350, hbmGB: 80,
+  };
 
   // ================================================================
   // State
@@ -75,6 +83,8 @@
     'batch','prompt','output','mfu','mbu',
     'valNumGpu','valGpuPerNode','valNvlink','valIb','valBatch','valPrompt','valOutput','valMfu','valMbu',
     'modelInfo','gpuInfo','numGpuInfo',
+    'customGpuPanel','cFp16','cFp8','cInt4','cBw','cCap',
+    'valCFp16','valCFp8','valCInt4','valCBw','valCCap',
     'mTTFT','mTPOT','mThroughput','mE2E','mMem','mMemFit','mBottleneck','mBottleneckDetail',
     'decodeBreakdown','prefillBreakdown','roofline',
     'btnPreset1','btnPreset2','btnPreset3',
@@ -100,8 +110,19 @@
     els.gpu.value   = state.gpuId;
   }
 
+  function updateCustomPanelVisibility() {
+    if (state.gpuId === 'custom') {
+      els.customGpuPanel.hidden = false;
+    } else {
+      els.customGpuPanel.hidden = true;
+    }
+  }
+
   function getModel() { return MODELS.find(m => m.id === state.modelId); }
-  function getGpu()   { return GPUS.find(g => g.id === state.gpuId); }
+  function getGpu()   {
+    if (state.gpuId === 'custom') return CUSTOM_GPU;
+    return GPUS.find(g => g.id === state.gpuId);
+  }
 
   // Peak FLOPS for the current GPU at the chosen precision.
   function peakFlops(gpu, b) {
@@ -525,7 +546,11 @@
   // ================================================================
   function bindControls() {
     els.model.addEventListener('change', () => { state.modelId = els.model.value; renderResults(); });
-    els.gpu.addEventListener('change',   () => { state.gpuId   = els.gpu.value;   renderResults(); });
+    els.gpu.addEventListener('change',   () => {
+      state.gpuId = els.gpu.value;
+      updateCustomPanelVisibility();
+      renderResults();
+    });
     els.precision.addEventListener('change', () => {
       state.bytesPerWeight = parseFloat(els.precision.value);
       renderResults();
@@ -556,6 +581,23 @@
       els.valMbu.textContent = (state.mbu * 100).toFixed(0) + '%';
       renderResults();
     });
+
+    // Custom GPU inputs
+    const wireCustom = (inp, display, key) => {
+      inp.addEventListener('input', () => {
+        const v = parseFloat(inp.value);
+        if (!isNaN(v) && v > 0) {
+          CUSTOM_GPU[key] = v;
+          if (display) display.textContent = v;
+          if (state.gpuId === 'custom') renderResults();
+        }
+      });
+    };
+    wireCustom(els.cFp16, els.valCFp16, 'fp16Tflops');
+    wireCustom(els.cFp8,  els.valCFp8,  'fp8Tflops');
+    wireCustom(els.cInt4, els.valCInt4, 'int4Tflops');
+    wireCustom(els.cBw,   els.valCBw,   'hbmGBs');
+    wireCustom(els.cCap,  els.valCCap,  'hbmGB');
 
     els.btnPreset1.addEventListener('click', () => applyPreset({
       modelId: 'llama-3.1-70b', gpuId: 'h100-sxm', bytesPerWeight: 1,
@@ -588,6 +630,7 @@
     els.valBatch.textContent      = state.batch;
     els.valPrompt.textContent     = state.promptLen;
     els.valOutput.textContent     = state.outputLen;
+    updateCustomPanelVisibility();
     renderResults();
   }
 
@@ -606,6 +649,7 @@
     els.valOutput.textContent     = state.outputLen;
     els.valMfu.textContent        = (state.mfu * 100).toFixed(0) + '%';
     els.valMbu.textContent        = (state.mbu * 100).toFixed(0) + '%';
+    updateCustomPanelVisibility();
     bindControls();
     renderResults();
   }

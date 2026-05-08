@@ -118,6 +118,33 @@
         <div class="sub-info" id="gpuInfo">&nbsp;</div>
       </div>
 
+      <!-- Custom GPU params (shown only when GPU = Custom) -->
+      <div class="control full custom-gpu" id="customGpuPanel" hidden>
+        <label>Custom GPU specs</label>
+        <div class="custom-grid">
+          <div>
+            <div class="custom-lbl">FP16 TFLOPS <span class="val" id="valCFp16">990</span></div>
+            <input type="number" id="cFp16" min="10" max="20000" step="10" value="990">
+          </div>
+          <div>
+            <div class="custom-lbl">FP8 TFLOPS <span class="val" id="valCFp8">1979</span></div>
+            <input type="number" id="cFp8" min="10" max="40000" step="10" value="1979">
+          </div>
+          <div>
+            <div class="custom-lbl">INT4 TFLOPS <span class="val" id="valCInt4">3958</span></div>
+            <input type="number" id="cInt4" min="10" max="80000" step="10" value="3958">
+          </div>
+          <div>
+            <div class="custom-lbl">HBM BW (GB/s) <span class="val" id="valCBw">3350</span></div>
+            <input type="number" id="cBw" min="100" max="20000" step="50" value="3350">
+          </div>
+          <div>
+            <div class="custom-lbl">HBM capacity (GB) <span class="val" id="valCCap">80</span></div>
+            <input type="number" id="cCap" min="4" max="512" step="1" value="80">
+          </div>
+        </div>
+      </div>
+
       <!-- Number of GPUs -->
       <div class="control">
         <label>Number of GPUs (Tensor Parallel) <span class="val" id="valNumGpu">8</span></label>
@@ -180,10 +207,14 @@
       </div>
     </div>
 
+    <div class="preset-heading">
+      <div class="preset-title">Presets</div>
+      <div class="preset-desc">Load a typical deployment shape. Overwrites all current settings; tweak from there.</div>
+    </div>
     <div class="btn-row">
-      <button class="primary" id="btnPreset1">H100 × 8 · Llama 3.1 70B</button>
-      <button id="btnPreset2">H100 × 64 · Llama 3.1 405B (multi-node)</button>
-      <button id="btnPreset3">A100 × 1 · Llama 3.1 8B</button>
+      <button class="primary" id="btnPreset1" title="Llama 3.1 70B on a single 8-GPU H100 node. Classic production chatbot setup — all TP traffic stays on NVLink.">H100 × 8 · Llama 3.1 70B</button>
+      <button id="btnPreset2" title="Llama 3.1 405B tensor-parallel across 8 nodes (64 GPUs). Collective all-reduce now crosses InfiniBand — shows how inter-node bandwidth becomes the bottleneck.">H100 × 64 · Llama 3.1 405B (multi-node)</button>
+      <button id="btnPreset3" title="Llama 3.1 8B on a single A100. Small model fits comfortably, no tensor parallel — shows the pure single-GPU decode regime.">A100 × 1 · Llama 3.1 8B</button>
     </div>
   </section>
 

@@ -100,7 +100,68 @@ p { color: var(--text); }
 
 /* Inside the (narrower) config pane, controls stack in a single column */
 .pane-config .controls {
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.pane-config h2 {
+  font-size: 1.2rem;
+  margin: 0 0 10px;
+  padding-left: 10px;
+}
+
+.pane-config .control {
+  padding: 6px 8px;
+}
+
+.pane-config .control label {
+  margin-bottom: 2px;
+  font-size: 0.8rem;
+  line-height: 1.2;
+}
+
+.pane-config .control .sub-info {
+  display: none;
+}
+
+/* ...except the model/GPU spec indicators, which carry real info */
+.pane-config .control #modelInfo,
+.pane-config .control #gpuInfo,
+.pane-config .control #numGpuInfo {
+  display: block;
+  font-size: 0.7rem;
+  margin-top: 3px;
+  line-height: 1.25;
+}
+
+.pane-config select {
+  padding: 4px 6px;
+  min-height: 28px;
+  font-size: 0.8rem;
+}
+
+.pane-config input[type="range"] {
+  min-height: 20px;
+  margin: 0;
+}
+
+.pane-config .btn-row {
+  margin-top: 8px;
+  gap: 6px;
+  display: grid;
   grid-template-columns: 1fr;
+}
+
+.pane-config button {
+  padding: 6px 10px;
+  font-size: 0.78rem;
+  min-height: 32px;
+}
+
+/* The two dropdowns (model, GPU) are the most important — span full width */
+.pane-config .control.full {
+  grid-column: 1 / -1;
 }
 
 /* On narrow screens, collapse to a single column and drop sticky */

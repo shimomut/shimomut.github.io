@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LLM Inference Performance Calculator</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="container">
+
+  <a class="nav-back" href="../">← Back to articles</a>
+
+  <header class="page-header">
+    <h1>LLM Inference Performance Calculator</h1>
+    <p class="subtitle">Estimate TTFT, throughput, and find the bottleneck for any model / GPU / topology</p>
+  </header>
+
+  <!-- ==================== INTRO ==================== -->
+  <section class="card">
+    <h2>What this calculates</h2>
+    <p>
+      LLM inference has two very different phases. <strong>Prefill</strong> (processing the input prompt)
+      is a dense matrix-matrix operation and is usually compute-bound. <strong>Decode</strong>
+      (generating tokens one at a time) is memory-bandwidth-bound because every token
+      must re-read the entire weight matrix through HBM.
+    </p>
+    <p>
+      The calculator below uses first-principles estimates from three numbers per GPU
+      (FP16/BF16 TFLOPS, HBM bandwidth, and interconnect bandwidth) plus the model's
+      parameter count and architecture. Pick a model, a GPU, a topology, and see where
+      the time goes.
+    </p>
+    <div class="callout">
+      <strong>Rule-of-thumb model used here:</strong>
+      <ul style="margin:6px 0 0 18px; padding:0">
+        <li><em>Prefill per layer</em> = max(compute-time, hbm-time) + all-reduce-time.</li>
+        <li><em>Decode per layer</em> = max(weight-read-time, kv-read-time, compute-time) + all-reduce-time.</li>
+        <li><em>TTFT</em> = prefill-time-for-prompt. <em>Throughput</em> = batch / decode-time-per-token.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ==================== CALCULATOR + RESULTS (side-by-side) ==================== -->
+  <div class="split">
+
+  <!-- LEFT: Results -->
+  <section class="card pane pane-results">
+    <h2>Results</h2>
+
+    <div class="metrics">
+      <div class="metric">
+        <div class="label">Time to First Token (TTFT)</div>
+        <div class="value" id="mTTFT">—</div>
+        <div class="sub-info">Full prefill of the prompt</div>
+      </div>
+      <div class="metric">
+        <div class="label">Per-token decode latency</div>
+        <div class="value" id="mTPOT">—</div>
+        <div class="sub-info">Inter-token latency (ITL)</div>
+      </div>
+      <div class="metric">
+        <div class="label">Throughput (total)</div>
+        <div class="value" id="mThroughput">—</div>
+        <div class="sub-info">Aggregate tokens/s across the batch</div>
+      </div>
+      <div class="metric">
+        <div class="label">End-to-end latency</div>
+        <div class="value" id="mE2E">—</div>
+        <div class="sub-info">TTFT + (output − 1) × ITL</div>
+      </div>
+      <div class="metric">
+        <div class="label">Weight memory / GPU</div>
+        <div class="value" id="mMem">—</div>
+        <div class="sub-info" id="mMemFit">&nbsp;</div>
+      </div>
+      <div class="metric">
+        <div class="label">Bottleneck (decode)</div>
+        <div class="value" id="mBottleneck">—</div>
+        <div class="sub-info" id="mBottleneckDetail">&nbsp;</div>
+      </div>
+    </div>
+
+    <h3>Where the time goes (per-layer, per decoded token)</h3>
+    <div class="breakdown" id="decodeBreakdown"></div>
+
+    <h3>Prefill breakdown (per layer, full prompt)</h3>
+    <div class="breakdown" id="prefillBreakdown"></div>
+  </section>
+
+  <!-- RIGHT: Configure -->
+  <section class="card pane pane-config">
+    <h2>Configure the run</h2>
+
+    <div class="controls">
+      <!-- Model -->
+      <div class="control">
+        <label>Model</label>
+        <select id="model"></select>
+        <div class="sub-info" id="modelInfo">&nbsp;</div>
+      </div>
+
+      <!-- Precision -->
+      <div class="control">
+        <label>Weight Precision</label>
+        <select id="precision">
+          <option value="2">FP16 / BF16 (2 B)</option>
+          <option value="1" selected>FP8 (1 B)</option>
+          <option value="0.5">INT4 / NF4 (0.5 B)</option>
+        </select>
+        <div class="sub-info">Affects both HBM traffic and peak FLOPS on modern GPUs.</div>
+      </div>
+
+      <!-- GPU -->
+      <div class="control">
+        <label>GPU</label>
+        <select id="gpu"></select>
+        <div class="sub-info" id="gpuInfo">&nbsp;</div>
+      </div>
+
+      <!-- Number of GPUs -->
+      <div class="control">
+        <label>Number of GPUs (Tensor Parallel) <span class="val" id="valNumGpu">8</span></label>
+        <input type="range" id="numGpu" min="1" max="64" value="8" step="1">
+        <div class="sub-info" id="numGpuInfo">&nbsp;</div>
+      </div>
+
+      <!-- GPUs per node -->
+      <div class="control">
+        <label>GPUs per node <span class="val" id="valGpuPerNode">8</span></label>
+        <input type="range" id="gpuPerNode" min="1" max="16" value="8" step="1">
+        <div class="sub-info">Traffic that crosses this boundary uses the slower inter-node link.</div>
+      </div>
+
+      <!-- Intra-node bandwidth -->
+      <div class="control">
+        <label>Intra-node link (GB/s) <span class="val" id="valNvlink">900</span></label>
+        <input type="range" id="nvlink" min="50" max="1800" value="900" step="50">
+        <div class="sub-info">NVLink gen4 ≈ 900, gen5 ≈ 1800. PCIe gen5 ×16 ≈ 64.</div>
+      </div>
+
+      <!-- Inter-node bandwidth -->
+      <div class="control">
+        <label>Inter-node link (GB/s) <span class="val" id="valIb">50</span></label>
+        <input type="range" id="ib" min="5" max="400" value="50" step="5">
+        <div class="sub-info">InfiniBand 400G ≈ 50, 800G ≈ 100. One NIC per GPU assumed.</div>
+      </div>
+
+      <!-- Batch -->
+      <div class="control">
+        <label>Batch size (concurrent requests) <span class="val" id="valBatch">16</span></label>
+        <input type="range" id="batch" min="1" max="256" value="16" step="1">
+        <div class="sub-info">Higher batch → better throughput, slightly higher TTFT/token.</div>
+      </div>
+
+      <!-- Prompt length -->
+      <div class="control">
+        <label>Input (prompt) length <span class="val" id="valPrompt">2048</span></label>
+        <input type="range" id="prompt" min="128" max="32768" value="2048" step="128">
+      </div>
+
+      <!-- Output length -->
+      <div class="control">
+        <label>Output length <span class="val" id="valOutput">256</span></label>
+        <input type="range" id="output" min="32" max="4096" value="256" step="32">
+      </div>
+
+      <!-- MFU -->
+      <div class="control">
+        <label>Compute efficiency (MFU) <span class="val" id="valMfu">45%</span></label>
+        <input type="range" id="mfu" min="10" max="85" value="45" step="1">
+        <div class="sub-info">Fraction of peak FLOPS you realistically achieve.</div>
+      </div>
+
+      <!-- MBU -->
+      <div class="control">
+        <label>Memory efficiency (MBU) <span class="val" id="valMbu">80%</span></label>
+        <input type="range" id="mbu" min="40" max="95" value="80" step="1">
+        <div class="sub-info">Fraction of peak HBM bandwidth effectively used.</div>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="primary" id="btnPreset1">H100 × 8 · Llama 3.1 70B</button>
+      <button id="btnPreset2">H100 × 64 · Llama 3.1 405B (multi-node)</button>
+      <button id="btnPreset3">A100 × 1 · Llama 3.1 8B</button>
+    </div>
+  </section>
+
+  </div><!-- /.split -->
+
+  <!-- ==================== ROOFLINE ==================== -->
+  <section class="card">
+    <h2>Roofline view</h2>
+    <p>
+      The roofline plots attainable performance against arithmetic intensity. Prefill
+      lives near the compute ceiling; decode sits far below it on the memory-bandwidth
+      slope. Moving from batch=1 to batch=128 shifts decode horizontally toward the
+      ridge point.
+    </p>
+    <div class="roofline-wrapper">
+      <canvas id="roofline" width="820" height="440"></canvas>
+    </div>
+  </section>
+
+  <!-- ==================== FORMULAS ==================== -->
+  <section class="card">
+    <h2>The math behind it</h2>
+    <p>Using <code>P</code> = active params, <code>L</code> = layers, <code>H</code> = hidden,
+    <code>S</code> = sequence length, <code>B</code> = batch, <code>N</code> = TP degree,
+    <code>b</code> = bytes per weight, KV in FP16 (2 B):</p>
+
+    <h3>Prefill (TTFT)</h3>
+    <ul>
+      <li><strong>Linear FLOPs</strong>: <code>2 · P · B · S</code></li>
+      <li><strong>Attention FLOPs</strong> (quadratic in S): <code>4 · L · B · S² · H</code></li>
+      <li><strong>Weight bytes read</strong>: <code>P · b</code> (once, reused across B·S tokens)</li>
+      <li><strong>All-reduce per layer</strong>: 2 × <code>B · S · H · 2</code> bytes (activations in FP16)</li>
+      <li><strong>Per-layer time</strong> ≈ <code>max(compute, hbm)</code> + <code>allreduce</code></li>
+    </ul>
+
+    <h3>Decode (per token)</h3>
+    <ul>
+      <li><strong>Weight bytes read</strong>: <code>P · b / N</code> per GPU</li>
+      <li><strong>KV bytes read</strong>: <code>2 · L · S · H<sub>kv</sub> · B · 2</code> (grows with context)</li>
+      <li><strong>Linear FLOPs</strong>: <code>2 · P · B</code></li>
+      <li><strong>Attention FLOPs</strong>: <code>4 · L · B · S · H</code></li>
+      <li><strong>All-reduce per layer</strong>: 2 × <code>B · H · 2</code> bytes (only 1 token)</li>
+    </ul>
+
+    <h3>Tensor parallel collective</h3>
+    <p>
+      Ring all-reduce takes <code>2 · (N − 1) / N · bytes / BW</code>. The slowest link on the
+      ring sets BW: if all N GPUs fit in one node, BW is NVLink; if the ring crosses nodes,
+      BW drops to the inter-node link (InfiniBand).
+    </p>
+
+    <h3>What this skips</h3>
+    <ul>
+      <li>Kernel launch overhead, scheduler cost, Python overhead. Real systems add 10-50 µs per step.</li>
+      <li>FlashAttention &amp; PagedAttention details — we assume a reasonably optimized implementation.</li>
+      <li>Pipeline parallelism and expert parallelism for MoE (we approximate with active-param scaling).</li>
+      <li>KV-cache quantization (assumes FP16 KV).</li>
+    </ul>
+  </section>
+
+</div>
+<script src="script.js"></script>
+</body>
+</html>

@@ -7,3 +7,4 @@
 - [The Attention Mechanism — Core of the Transformer Architecture](attention-mechanism/)
 - [Why GPU Tensor Cores Sit Idle During LLM Decode](gpu-decode-latency/)
 - [LLM Inference Performance Calculator](llm-inference-calculator/)
+- [Framework Backends for Non-GPU Accelerators](framework-backend-for-accelerators/)

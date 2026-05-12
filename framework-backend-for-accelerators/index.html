@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Framework Backends for Non-GPU Accelerators</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header>
+    <h1>Framework Backends for Non-GPU Accelerators</h1>
+    <p class="subtitle">How PyTorch, JAX, and inference frameworks adapt their backends for TPU, Trainium, and other accelerators</p>
+  </header>
+
+  <section class="intro">
+    <p>Modern ML frameworks are designed with a <strong>pluggable backend architecture</strong>. The user-facing API (e.g., <code>torch.nn</code>, <code>model.generate()</code>) stays the same, but the compilation and execution layers underneath can be swapped to target different hardware.</p>
+    <p>This article visualizes the software stack for inference and training across accelerators, highlighting which layers must be customized and which remain shared.</p>
+  </section>
+
+  <div class="toggle-bar">
+    <button class="toggle-btn active" data-mode="inference">Inference</button>
+    <button class="toggle-btn" data-mode="training">Training</button>
+  </div>
+
+  <div class="stack-comparison" id="stackComparison"></div>
+
+  <section class="details-panel" id="detailsPanel">
+    <div class="details-content" id="detailsContent"></div>
+  </section>
+
+  <section class="article-content">
+    <h2>How torch.compile Enables Hardware Portability</h2>
+    <div class="explanation-block">
+      <p><code>torch.compile</code> (PyTorch 2.0+) introduces a clean separation between <strong>graph capture</strong> and <strong>graph lowering</strong>. TorchDynamo captures the computation graph from Python, then hands it to a pluggable backend for optimization and code generation.</p>
+      <p>For NVIDIA GPUs, the default backend is <strong>TorchInductor</strong>, which generates Triton kernels. For Trainium, AWS replaces this with <strong>torch_neuronx</strong> (backed by Neuron Compiler), which lowers the same graph to NeuronCore-optimized instructions. For TPUs, Google provides <strong>torch_xla</strong>, which routes through XLA/HLO.</p>
+    </div>
+
+    <div class="explanation-block callout">
+      <h3>Important: torch.compile is primarily the inference portability story</h3>
+      <p>On NVIDIA GPUs, <code>torch.compile</code> works for both training and inference. However, on non-GPU accelerators, the <code>torch.compile</code> backend-replacement pattern is primarily used for <strong>inference</strong>.</p>
+      <p>For <strong>training</strong>, non-GPU accelerators typically use a different mechanism — <strong>XLA lazy tensors</strong>. Instead of tracing via TorchDynamo, the model runs in eager mode but operations are accumulated into an XLA graph (lazily), which is then compiled and executed when a synchronization point is reached. This approach better handles the dynamic nature of training (gradient computation, optimizer steps, distributed communication).</p>
+      <table class="inline-table">
+        <thead>
+          <tr><th></th><th>Inference</th><th>Training</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>NVIDIA GPU</td><td>torch.compile (TorchInductor)</td><td>torch.compile (TorchInductor)</td></tr>
+          <tr><td>AWS Trainium</td><td>torch.compile (Neuron backend)</td><td>XLA lazy tensors + NxD Training</td></tr>
+          <tr><td>Google TPU</td><td>torch.compile (XLA) / JAX jit</td><td>torch_xla lazy tensors / JAX jit</td></tr>
+          <tr><td>Intel Gaudi</td><td>torch.compile (Gaudi backend)</td><td>Lazy mode (Synapse graphs)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="compile-flow" id="compileFlow"></div>
+
+    <h2>Key Design Patterns</h2>
+    <div class="patterns-grid">
+      <div class="pattern-card">
+        <h3>Graph Capture (Shared)</h3>
+        <p>TorchDynamo / <code>torch.fx</code> traces the Python model into an intermediate representation (FX Graph). This layer is hardware-agnostic and shared across all backends.</p>
+      </div>
+      <div class="pattern-card">
+        <h3>Graph Lowering (Custom)</h3>
+        <p>Each accelerator provides its own compiler that transforms the FX Graph into hardware-specific instructions. This is where operator fusion, memory planning, and scheduling happen.</p>
+      </div>
+      <div class="pattern-card">
+        <h3>Runtime & Driver (Custom)</h3>
+        <p>The compiled artifact executes on a device-specific runtime. CUDA Runtime for GPUs, Neuron Runtime for Trainium, XRT for TPUs. Each manages device memory, kernel dispatch, and multi-device communication.</p>
+      </div>
+      <div class="pattern-card">
+        <h3>Collective Communication (Custom)</h3>
+        <p>Distributed operations (AllReduce, AllGather) use hardware-specific libraries: NCCL for GPUs, Neuron CCL for Trainium NeuronLink, and XLA SPMD for TPU ICI.</p>
+      </div>
+    </div>
+
+    <h2>Inference vs Training: What Changes?</h2>
+    <div class="explanation-block">
+      <p>For <strong>inference</strong>, the <code>torch.compile</code> backend-replacement pattern provides a clean portability story. The key customization points are the compiler backend and the serving runtime. Inference-specific optimizations (KV cache management, continuous batching, speculative decoding) need framework-level adaptation for each accelerator.</p>
+      <p>For <strong>training</strong>, the graph capture mechanism itself changes on non-GPU accelerators. Instead of TorchDynamo, training relies on XLA lazy tensors or framework-native tracing (JAX's <code>jit</code>). Additional customization is needed for gradient computation, distributed communication (collective operations), and mixed-precision support (hardware-specific numeric formats like NeuronCore's stochastic rounding or TPU's native bfloat16).</p>
+      <p>This means the "plug in a different backend" abstraction is <strong>thinner for training</strong> — you often need deeper integration with the framework's autograd, optimizer, and distributed modules, which is why each accelerator vendor provides a training-specific SDK (NxD, torch_xla, Synapse AI).</p>
+    </div>
+  </section>
+
+  <footer>
+    <p>Built for <a href="https://shimomut.github.io/">shimomut.github.io</a></p>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>

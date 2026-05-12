@@ -78,9 +78,9 @@ const stackLayers = {
       layer: 'User API',
       cells: [
         { accel: 'NVIDIA GPU', label: 'PyTorch / HF Trainer', detail: 'model.train(), loss.backward()', badge: 'shared' },
-        { accel: 'Google TPU', label: 'JAX / PyTorch (XLA)', detail: 'jax.grad, pmap/pjit', badge: 'shared' },
-        { accel: 'AWS Trainium', label: 'PyTorch / NxD Training', detail: 'Neuron Distributed Training', badge: 'shared' },
-        { accel: 'Intel Gaudi', label: 'PyTorch / HF Trainer', detail: 'optimum-habana Trainer', badge: 'shared' },
+        { accel: 'Google TPU', label: 'JAX / PyTorch (XLA)', detail: 'Model shared, training loop adapted', badge: 'partial' },
+        { accel: 'AWS Trainium', label: 'PyTorch / NxD Training', detail: 'Model shared, script requires changes', badge: 'partial' },
+        { accel: 'Intel Gaudi', label: 'PyTorch / HF Trainer', detail: 'Model shared, Habana plugin needed', badge: 'partial' },
         { accel: 'AMD MI300', label: 'PyTorch / HF Trainer', detail: 'Same as GPU (ROCm)', badge: 'shared' },
       ]
     },
@@ -158,6 +158,49 @@ const stackLayers = {
 };
 
 const cellExplanations = {
+  // === User API (Inference) ===
+  'PyTorch / HF Transformers': {
+    title: 'PyTorch + HuggingFace Transformers (Inference)',
+    desc: 'The standard user-facing API for LLM inference. You load a model with AutoModelForCausalLM.from_pretrained() and call model.generate(). The same code works across NVIDIA GPU, AMD MI300 (ROCm), and with minor adapter imports for Trainium (transformers-neuronx). The model architecture code (torch.nn.Module) is fully shared.',
+    url: 'https://huggingface.co/docs/transformers/'
+  },
+  'PyTorch / JAX': {
+    title: 'PyTorch (via torch_xla) or JAX on TPU',
+    desc: 'For TPU inference, you can use PyTorch with torch_xla (same model code, different execution backend) or native JAX (different API but same XLA compilation path). The model definition is portable from GPU PyTorch; the serving integration requires TPU-specific setup.',
+    url: 'https://github.com/pytorch/xla'
+  },
+  'PyTorch / HF Optimum': {
+    title: 'HuggingFace Optimum for Intel Gaudi',
+    desc: 'optimum-habana provides a GaudiTrainer and pipeline() wrappers that adapt HuggingFace Transformers for Gaudi. The model architecture code is unchanged, but you import from optimum.habana instead of transformers for the runtime integration. This keeps the user API surface familiar while routing execution through Synapse AI.',
+    url: 'https://huggingface.co/docs/optimum/habana/'
+  },
+  // === User API (Training) — mode-specific keys ===
+  'training:NVIDIA GPU:PyTorch / HF Trainer': {
+    title: 'PyTorch + HuggingFace Trainer (GPU Training)',
+    desc: 'On NVIDIA GPU, the standard training loop works unmodified: Trainer(model, args).train() handles distributed setup, mixed precision, gradient accumulation, and checkpointing automatically. Both the model definition (torch.nn.Module) and the training orchestration are the baseline that other accelerators are compared against.',
+    url: 'https://huggingface.co/docs/transformers/trainer'
+  },
+  'training:AMD MI300:PyTorch / HF Trainer': {
+    title: 'PyTorch + HuggingFace Trainer (AMD ROCm Training)',
+    desc: 'Thanks to HIP\'s CUDA API compatibility, the same HF Trainer code works on AMD MI300 with no script changes — just install the ROCm build of PyTorch. The model definition and training logic are fully portable. This is the only non-NVIDIA accelerator where the training loop is truly "shared" without modification.',
+    url: 'https://huggingface.co/docs/transformers/trainer'
+  },
+  'training:Intel Gaudi:PyTorch / HF Trainer': {
+    title: 'Training on Intel Gaudi — Model Shared, Plugin Required',
+    desc: 'The model architecture (torch.nn.Module) is portable without changes. However, the training script must use optimum-habana\'s GaudiTrainer instead of the standard Trainer, import the Gaudi plugin (habana_frameworks.torch.core), and use HPU-specific configurations. The modifications are moderate — less invasive than Trainium/TPU, but not zero-touch like AMD ROCm.',
+    url: 'https://huggingface.co/docs/optimum/habana/'
+  },
+  'JAX / PyTorch (XLA)': {
+    title: 'Training on Google TPU — Model Shared, Loop Adapted',
+    desc: 'The model architecture (layers, attention, MLP) is portable from GPU PyTorch via torch_xla. However, the training loop requires adaptation: you must use xm.optimizer_step() instead of optimizer.step(), insert xm.mark_step() for graph execution, and use TPU-specific data loading (MpDeviceLoader). For JAX, the training loop is fundamentally different (functional style with jax.grad + jit). The abstraction gap is wider than "just swap a backend."',
+    url: 'https://github.com/pytorch/xla'
+  },
+  'PyTorch / NxD Training': {
+    title: 'Training on AWS Trainium — Model Shared, Script Adapted',
+    desc: 'Your torch.nn.Module model definition is reusable without changes. However, the training script requires Neuron-specific modifications: wrapping the model with NxD parallelism APIs (neuronx_distributed.parallel_layers), inserting xm.mark_step() to trigger lazy graph compilation, using Neuron-compatible optimizers, and configuring NeuronCore topology. This is more than a flag change — it\'s a script rewrite around a shared model.',
+    url: 'https://awsdocs-neuron.readthedocs-hosted.com/'
+  },
+  // === Rest of cells ===
   'TorchInductor → Triton': {
     title: 'TorchInductor (NVIDIA GPU Backend)',
     desc: 'TorchInductor is the default torch.compile backend for NVIDIA GPUs. It takes an FX Graph from TorchDynamo, performs operator fusion and memory planning, then generates Triton kernel code. Triton compiles this Python-like code into optimized PTX/SASS for the specific GPU architecture. This path delivers 20-50% speedup over eager PyTorch execution.',
@@ -313,19 +356,93 @@ const cellExplanations = {
     desc: 'Intel Gaudi\'s lazy mode operates similarly to XLA lazy tensors — operations are accumulated into a Synapse graph rather than executed immediately. The graph is compiled and executed at explicit synchronization points (htcore.mark_step()). This allows the Synapse Graph Compiler to perform whole-graph optimizations (fusion, memory planning, scheduling across MME and TPC engines) that aren\'t possible in eager mode.',
     url: 'https://docs.habana.ai/'
   },
+  // === Distributed Strategy ===
+  'FSDP / DeepSpeed (Gaudi)': {
+    title: 'Distributed Training on Intel Gaudi',
+    desc: 'Intel adapts PyTorch FSDP and DeepSpeed for Gaudi by replacing the NCCL communication backend with HCCL. The parallelism logic (sharding, gradient sync) is shared from the GPU implementation, but the transport layer is Gaudi-specific. Some features (like certain DeepSpeed ZeRO stages) may have limited support depending on the Synapse AI version.',
+    url: 'https://docs.habana.ai/'
+  },
+  'FSDP / DeepSpeed (ROCm)': {
+    title: 'Distributed Training on AMD MI300',
+    desc: 'AMD uses the same FSDP and DeepSpeed code as NVIDIA GPUs, with RCCL as the drop-in replacement for NCCL. The parallelism strategies and configuration are identical — this is one of the layers where ROCm\'s CUDA compatibility pays off most directly.',
+    url: 'https://rocm.docs.amd.com/'
+  },
+  // === Autograd & Mixed Precision ===
+  'PyTorch Autograd + AMP': {
+    title: 'PyTorch Native Autograd & Automatic Mixed Precision',
+    desc: 'On NVIDIA GPU and AMD MI300, PyTorch\'s native autograd (automatic differentiation) and AMP (torch.cuda.amp / torch.amp) work without modification. AMP automatically selects BF16/FP16 for compute-intensive ops while keeping FP32 for numerically sensitive ones. On Hopper/Blackwell GPUs, Transformer Engine adds FP8 support on top.',
+    url: 'https://pytorch.org/docs/stable/amp.html'
+  },
+  'JAX grad + jmp': {
+    title: 'JAX Autograd & Mixed Precision on TPU',
+    desc: 'JAX uses functional transformations (jax.grad, jax.value_and_grad) for automatic differentiation — fundamentally different from PyTorch\'s tape-based autograd. Mixed precision is handled by jmp (JAX Mixed Precision) or manual dtype casting. TPUs natively support BF16 and the v6e adds FP8 Tensor Cores.',
+    url: 'https://jax.readthedocs.io/'
+  },
+  'Autograd + Neuron AMP': {
+    title: 'Autograd & Mixed Precision on Trainium',
+    desc: 'PyTorch autograd works through the XLA lazy tensor layer — gradients are computed as part of the XLA graph. Neuron AMP provides BF16 mixed precision with stochastic rounding (a hardware feature that improves convergence at lower precision). Trainium2 adds FP8 support. The AMP configuration is Neuron-specific, not the standard torch.amp.',
+    url: 'https://awsdocs-neuron.readthedocs-hosted.com/'
+  },
+  'Autograd + Habana MP': {
+    title: 'Autograd & Mixed Precision on Intel Gaudi',
+    desc: 'PyTorch autograd works through Synapse graph compilation. Habana provides its own mixed-precision recipe that selects ops for BF16 vs FP32 execution based on Gaudi\'s numeric capabilities. Gaudi 3 adds FP8 support. The configuration uses Habana-specific APIs rather than standard torch.amp.',
+    url: 'https://docs.habana.ai/'
+  },
+  // === Hardware ===
+  'H100 / B200 Tensor Cores': {
+    title: 'NVIDIA Data Center GPUs',
+    desc: 'H100 (Hopper): 80GB HBM3, FP8 Tensor Cores, NVLink 4.0 (900 GB/s), Transformer Engine. B200 (Blackwell): 192GB HBM3e, 2nd-gen Transformer Engine, NVLink 5.0 (1.8 TB/s). The dominant hardware for both training and inference, with the deepest software ecosystem.',
+    url: 'https://www.nvidia.com/en-us/data-center/'
+  },
+  'TPU v5e / v6e MXU': {
+    title: 'Google TPU Accelerators',
+    desc: 'TPU v5e: cost-optimized for inference and small-scale training. TPU v6e (Trillium): 4.7x training performance over v5e, supports FP8, larger HBM. Both use the Matrix Multiply Unit (MXU) — a systolic array architecture that excels at large matrix operations. Connected via ICI (Inter-Chip Interconnect) in 2D/3D torus topologies.',
+    url: 'https://cloud.google.com/tpu'
+  },
+  'TPU v5p / v6e MXU': {
+    title: 'Google TPU Accelerators (Training)',
+    desc: 'TPU v5p: performance-optimized for large-scale training with higher HBM bandwidth and ICI throughput than v5e. TPU v6e (Trillium): latest generation with 4.7x training improvement. Pods scale to thousands of chips connected via high-bandwidth ICI, enabling training of trillion-parameter models without complex parallelism configuration.',
+    url: 'https://cloud.google.com/tpu'
+  },
+  'Trainium2 NeuronCores': {
+    title: 'AWS Trainium2 Accelerator',
+    desc: 'Trainium2 features NeuronCore-v3 with dedicated tensor, vector, and scalar engines. Each Trn2 instance has up to 16 NeuronCores connected via NeuronLink (768 GB/s bidirectional). Supports BF16, FP8, and configurable stochastic rounding. Designed for both training and inference with a unified Neuron SDK.',
+    url: 'https://aws.amazon.com/machine-learning/trainium/'
+  },
+  'Gaudi 3 TPC + MME': {
+    title: 'Intel Gaudi 3 Accelerator',
+    desc: 'Gaudi 3 has a dual-engine architecture: Matrix Math Engine (MME) for GEMMs and Tensor Processing Cores (TPC) for everything else (activations, normalization, custom ops). 128GB HBM2e, 24x 200GbE integrated NICs for scale-out without external switches. The integrated networking is a distinctive architectural choice vs. external InfiniBand/NVLink.',
+    url: 'https://www.intel.com/gaudi'
+  },
+  'MI300X CDNA 3': {
+    title: 'AMD Instinct MI300X',
+    desc: 'MI300X: 192GB HBM3 (highest memory capacity), CDNA 3 architecture with Matrix Cores (FP8, BF16, FP16, INT8). 8 chiplets on a single package with Infinity Fabric links. The large memory capacity enables running larger models without tensor parallelism. ROCm/HIP software stack provides CUDA source-level compatibility.',
+    url: 'https://www.amd.com/en/products/accelerators/instinct/mi300.html'
+  },
+  // === Graph Capture (Inference) ===
+  'TorchDynamo / torch.fx': {
+    title: 'TorchDynamo Graph Capture',
+    desc: 'TorchDynamo intercepts Python bytecode execution to capture the computation graph into an FX Graph IR (intermediate representation). It handles Python control flow, dynamic shapes, and graph breaks gracefully. This shared layer means any torch.compile backend receives the same standardized graph format regardless of the original model code style.',
+    url: 'https://pytorch.org/docs/stable/dynamo/'
+  },
+  'TorchDynamo / JAX tracing': {
+    title: 'Graph Capture for TPU Inference',
+    desc: 'For TPU inference via torch.compile, TorchDynamo captures the graph and hands it to the XLA backend. Alternatively, JAX\'s jit traces a function into XLA HLO directly. Both paths converge on the same XLA compilation infrastructure — just different entry points (PyTorch ecosystem vs JAX ecosystem).',
+    url: 'https://github.com/pytorch/xla'
+  },
 };
 
 let currentMode = 'inference';
 let selectedCell = null;
 
 function renderLegend() {
-  const container = document.getElementById('stackComparison');
+  const mainLayout = document.querySelector('.main-layout');
   const legendHtml = `<div class="stack-legend">
     <div class="legend-item"><div class="legend-dot" style="background: var(--color-shared)"></div>Shared across accelerators</div>
     <div class="legend-item"><div class="legend-dot" style="background: var(--color-custom)"></div>Hardware-specific (custom)</div>
     <div class="legend-item"><div class="legend-dot" style="background: var(--color-partial)"></div>Partially shared / adapted</div>
   </div>`;
-  container.insertAdjacentHTML('beforebegin', legendHtml);
+  mainLayout.insertAdjacentHTML('beforebegin', legendHtml);
 }
 
 function renderStack() {
@@ -359,27 +476,32 @@ function renderStack() {
   container.querySelectorAll('.stack-cell').forEach(el => {
     el.addEventListener('click', () => {
       const label = el.dataset.label;
-      selectCell(label, el);
+      const accel = el.dataset.accel;
+      selectCell(label, accel, el);
     });
   });
 }
 
-function selectCell(label, el) {
+function selectCell(label, accel, el) {
   const panel = document.getElementById('detailsPanel');
   const content = document.getElementById('detailsContent');
+  const cellKey = `${currentMode}:${accel}:${label}`;
 
   document.querySelectorAll('.stack-cell.selected').forEach(c => c.classList.remove('selected'));
 
-  if (selectedCell === label) {
+  if (selectedCell === cellKey) {
     selectedCell = null;
     panel.classList.remove('visible');
     return;
   }
 
-  selectedCell = label;
+  selectedCell = cellKey;
   el.classList.add('selected');
 
-  const info = cellExplanations[label];
+  // Look up by most-specific key first, then fall back to label-only
+  const info = cellExplanations[`${currentMode}:${accel}:${label}`]
+    || cellExplanations[`${currentMode}:${label}`]
+    || cellExplanations[label];
   if (info) {
     let html = `<h3>${info.title}</h3><p>${info.desc}</p>`;
     if (info.url) {
